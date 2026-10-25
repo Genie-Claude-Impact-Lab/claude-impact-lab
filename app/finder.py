@@ -140,49 +140,6 @@ def google_search(query: str, key: str, center, radius_mi, limit: int) -> list[d
     return out[:limit]
 
 
-# ---------------------------------------------------------------- search: Yelp
-def parse_yelp(b: dict) -> dict:
-    loc, c = b.get("location") or {}, b.get("coordinates") or {}
-    return {
-        "id": "y:" + b.get("id", ""),
-        "business_name": b.get("name", ""),
-        "address": ", ".join(loc.get("display_address") or []),
-        "industry": ((b.get("categories") or [{}])[0]).get("title", ""),
-        "website": "",          # Yelp gives its own page, not the business's website
-        "phone": b.get("display_phone", ""),
-        "rating": b.get("rating"),
-        "review_count": b.get("review_count"),
-        "last_review_date": "",
-        "status": "closed" if b.get("is_closed") else "open",
-        "maps_url": b.get("url", ""),
-        "latlon": (c["latitude"], c["longitude"]) if c.get("latitude") is not None else None,
-        "is_chain": False,
-        "found_on": "Yelp",
-    }
-
-
-def yelp_search(term: str, key: str, city: str, center, radius_mi, limit: int, get=None) -> list[dict]:
-    get = get or requests.get
-    params = {"term": term, "limit": min(50, limit)}
-    if center and not city:
-        params.update(latitude=center[0], longitude=center[1])
-    else:
-        params["location"] = city or "United States"
-    if radius_mi:
-        params["radius"] = min(int(radius_mi * 1609.34), 40000)
-    r = get("https://api.yelp.com/v3/businesses/search", params=params, timeout=20,
-            headers={"Authorization": f"Bearer {key}", "accept": "application/json"})
-    if r.status_code != 200:
-        try:
-            msg = r.json().get("error", {}).get("description", "")
-        except Exception:
-            msg = ""
-        if r.status_code in (400, 401, 403):
-            raise SearchError(f"Yelp refused the search. Check the Yelp key in .env. Yelp said: {msg}")
-        raise SearchError(f"Yelp search failed ({r.status_code}). Try again in a minute.")
-    return [parse_yelp(b) for b in r.json().get("businesses", [])]
-
-
 # ---------------------------------------------------------------- search: OpenStreetMap (free fallback)
 OVERPASS = ["https://overpass-api.de/api/interpreter",
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
@@ -765,7 +722,7 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
-def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_client=None, yelp_key: str = "",
+def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_client=None,
                claude_model: str = "claude-sonnet-5-5", progress=lambda msg, frac: None,
                visit=visit_website, mx=has_mx, log=lambda text: None, verify=None) -> dict:
     types = list(profile.get("types", []))
@@ -776,11 +733,11 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
         raise SearchError("Pick at least one kind of business.")
     city = (profile.get("city") or "").strip()
     anywhere = profile.get("radius") == ANYWHERE
-    if not city and not (anywhere and (google_key or yelp_key)):
+    if not city and not (anywhere and google_key):
         raise SearchError("Tell us which city to search around." if not anywhere else
                           "Searching anywhere in the US needs a Google key. Add a city to search around it instead.")
     radius = RADIUS_MILES.get(profile.get("radius", ""), 10)
-    if anywhere and not (google_key or yelp_key):
+    if anywhere and not google_key:
         radius = FREE_MAP_WIDEST
         log(f"The free map can't search the whole country, so we searched {FREE_MAP_WIDEST} miles around {city}.")
 
@@ -794,12 +751,6 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
         found = []
         for q in queries:
             found += google_search(f"{q} in {city}" if city else f"{q} in the United States", google_key, center, radius, per)
-    elif yelp_key:
-        source = "Yelp"
-        per = max(5, math.ceil(limit / len(queries)))
-        found = []
-        for q in queries:
-            found += yelp_search(q, yelp_key, city, center, radius, per)
     else:
         source = "OpenStreetMap"
         filters = [f for t in types for f in TYPES.get(t, {}).get("osm", [])]
