@@ -1025,6 +1025,7 @@ function renderSettings(){
     <section class="panel"><h3 class="h3">Connections</h3>
       <p class="lede">Keys are kept on the computer running Leadline, in a file called <b>.env</b> in the app folder, never in the website. After adding a key, restart Leadline.</p>
       ${key(SERVER.google, "Google Maps", "Finds businesses with reviews and open or closed status.", "Without it we use a free public map, which finds fewer businesses and is sometimes busy. Add GOOGLE_MAPS_API_KEY to .env.")}
+      ${key(SERVER.yelp, "Yelp", "Finds businesses on Yelp with ratings and phone numbers (used when there’s no Google key).", "Add YELP_API_KEY to .env.")}
       ${key(SERVER.claude, "Claude", "Reads websites for owners’ names and fit, reads your website and files, and writes emails.", "Without it you fill in the questions yourself and emails use a template. Add ANTHROPIC_API_KEY to .env.")}</section>
     <section class="panel"><h3 class="h3">Start over</h3><p class="lede">Remove every business, search, lead and draft saved in this browser. Sample businesses come back as they were.</p>
       <div class="go"><button class="btn ghost" type="button" id="sClearAll" style="color:var(--warn)">Clear everything on this browser</button></div></section>
@@ -1179,7 +1180,7 @@ function renderFind(){
       </details>
       <div class="go"><button class="btn dark big" type="button" id="fGo"${running ? " disabled" : ""}>${running ? "Finding leads…" : "Find leads"}</button>
         <button class="btn ghost" type="button" id="fExample">Try an example</button></div>
-      <p class="modeline">${SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses and is sometimes busy. Add a Google key for fuller, reliable results."}
+      <p class="modeline">${SERVER.google ? "Searching Google Maps." : SERVER.yelp ? "Searching Yelp. Yelp doesn’t list business websites, so many leads will need an email." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses and is sometimes busy. Add a Google key for fuller, reliable results."}
         ${SERVER.claude ? "" : " Add a Claude key for owner names, fit and written emails."} It usually takes 30 to 60 seconds.</p>
       <div id="fErr"></div><div id="fProg"></div>
     </section></div>`;

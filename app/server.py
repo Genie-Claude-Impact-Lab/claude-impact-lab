@@ -31,6 +31,7 @@ load_dotenv(HERE / ".env")
 
 GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+YELP_KEY = os.environ.get("YELP_API_KEY", "").strip()
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "").strip() or "claude-sonnet-5-5"
 SEARCHES_PER_HOUR = int(os.environ.get("SEARCHES_PER_HOUR", "20"))
 
@@ -73,10 +74,10 @@ def _visitor(request: Request) -> str:
 
 @app.get("/api/status")
 def status():
-    return {"google": bool(GOOGLE_KEY), "claude": bool(CLAUDE_KEY),
+    return {"google": bool(GOOGLE_KEY), "claude": bool(CLAUDE_KEY), "yelp": bool(YELP_KEY),
             "options": {"types": list(finder.TYPES), "radius": list(finder.RADIUS_MILES),
                         "deciders": list(finder.DECIDER_WORDS),
-                        "signals": finder.SIGNALS if GOOGLE_KEY else ["No website"]}}
+                        "signals": finder.SIGNALS if GOOGLE_KEY or YELP_KEY else ["No website"]}}
 
 
 @app.post("/api/understand")
@@ -201,7 +202,7 @@ def _run(job_id: str, profile: dict, how_many: int):
         job["message"], job["progress"] = msg, round(min(1.0, frac), 3)
 
     try:
-        res = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY, claude_client=claude(),
+        res = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY, yelp_key=YELP_KEY, claude_client=claude(),
                                 claude_model=CLAUDE_MODEL, progress=progress, log=lambda t: job["log"].append(t))
         job["raw"] = {l["id"]: l for l in res["leads"]}
         job["result"] = {"source": res["source"], "leads": [to_card(l) for l in res["leads"]],
