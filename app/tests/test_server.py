@@ -127,3 +127,22 @@ def test_word_and_email_files_are_read(client):
 def test_unsupported_and_empty_files_get_plain_messages(client):
     assert "Save it as a PDF" in _upload(client, "deck.pptx", b"x").json()["detail"]
     assert "any text" in _upload(client, "blank.txt", b"   ").json()["detail"]
+
+
+def test_keys_can_only_be_changed_on_this_computer(client):
+    assert client.post("/api/keys", json={"google": "x" * 30}).status_code == 403
+
+
+def test_saving_and_removing_a_key(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(server, "HERE", tmp_path)
+    monkeypatch.setattr(server, "LOCAL_HOSTS", server.LOCAL_HOSTS | {"testclient"})
+    (tmp_path / ".env").write_text("GOOGLE_MAPS_API_KEY=\nANTHROPIC_API_KEY=\n# keep me\n")
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    assert client.post("/api/keys", json={"claude": "not-a-claude-key-at-all-123"}).status_code == 400
+    s = client.post("/api/keys", json={"google": "AIza" + "x" * 30}).json()
+    assert s["google"] is True and "AIza" not in str(s)
+    env = (tmp_path / ".env").read_text()
+    assert "GOOGLE_MAPS_API_KEY=AIza" in env and "# keep me" in env
+    assert client.post("/api/keys", json={"google": ""}).json()["google"] is False
+    assert "GOOGLE_MAPS_API_KEY=\n" in (tmp_path / ".env").read_text()

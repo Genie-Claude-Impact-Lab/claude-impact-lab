@@ -79,6 +79,49 @@ def status():
                         "signals": finder.SIGNALS if GOOGLE_KEY else ["No website"]}}
 
 
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+KEY_NAMES = {"google": "GOOGLE_MAPS_API_KEY", "claude": "ANTHROPIC_API_KEY"}
+
+
+def set_env(name: str, value: str):
+    """Write one setting into .env next to this file, keeping everything else."""
+    path = HERE / ".env"
+    lines = path.read_text().splitlines() if path.exists() else []
+    out, done = [], False
+    for line in lines:
+        if line.split("=", 1)[0].strip() == name:
+            out.append(f"{name}={value}")
+            done = True
+        else:
+            out.append(line)
+    if not done:
+        out.append(f"{name}={value}")
+    path.write_text("\n".join(out) + "\n")
+
+
+@app.post("/api/keys")
+def save_keys(body: dict, request: Request):
+    """Save or remove keys from Settings. Only from the computer running Leadline; keys are never sent back."""
+    global GOOGLE_KEY, CLAUDE_KEY, _claude
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_HOSTS or request.headers.get("x-forwarded-for"):
+        raise HTTPException(403, "Keys can only be changed on the computer that runs Leadline.")
+    for field, env in KEY_NAMES.items():
+        if field not in body:
+            continue
+        value = (body.get(field) or "").strip()
+        if value and (len(value) < 20 or any(c.isspace() for c in value)):
+            raise HTTPException(400, "That doesn't look like a complete key. Copy it again and paste the whole thing.")
+        if value and field == "claude" and not value.startswith("sk-ant-"):
+            raise HTTPException(400, "Claude keys start with sk-ant-. Copy it from API keys in the Claude Console.")
+        set_env(env, value)
+        os.environ[env] = value
+    GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+    CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    _claude = None
+    return status()
+
+
 @app.post("/api/understand")
 def understand(body: dict):
     text = (body.get("description") or "").strip()

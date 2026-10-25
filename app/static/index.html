@@ -290,6 +290,8 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
 .mat b{display:block;font-weight:500;overflow-wrap:anywhere}
 .mat span{font-size:13px;color:var(--muted)}
 @media (max-width:600px){ .mat{grid-template-columns:1fr} }
+.keyform{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.keyform input{flex:1 1 240px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:10px 16px;min-height:44px;font-size:15px;min-width:0}
 .warnbox{background:rgba(184,101,12,.12);border-radius:14px;padding:10px 14px;margin:0 26px 18px;font-size:14px}
 </style>
 </head>
@@ -1008,7 +1010,10 @@ function removeBusiness(id){
 }
 function saveSettings(){ store.set("ll4-settings", SETTINGS); }
 function renderSettings(){
-  const key = (on, name, does, how) => `<div class="arow"><b>${name}: ${on ? "connected" : "not connected"}</b><span>${does}</span>${on ? "" : `<span>${how}</span>`}</div>`;
+  const key = (id, on, name, does, how, ph) => `<div class="arow"><b>${name}: ${on ? "connected" : "not connected"}</b><span>${does}</span>${on ? "" : `<span>${how}</span>`}
+    <form class="keyform" data-key-form="${id}"><label class="sr" for="k-${id}">${name} key</label>
+      <input id="k-${id}" type="password" autocomplete="off" spellcheck="false" placeholder="${on ? "Paste a new key to replace it" : ph}">
+      <button class="btn dark" type="submit">Save</button>${on ? `<button class="btn ghost" type="button" data-key-remove="${id}">Remove</button>` : ""}</form></div>`;
   const nameOf = k => (k === persona ? profile.company : store.get(`ll4-${k}-profile`, {})?.company) || "Untitled business";
   $("setView").innerHTML = `<div class="find">
     <section class="panel"><h2>Settings</h2><p class="lede">Settings are saved in this browser.</p></section>
@@ -1023,9 +1028,10 @@ function renderSettings(){
       <div class="seg" role="radiogroup" aria-label="Theme" style="max-width:420px">${[["auto","Match my device"],["light","Light"],["dark","Dark"]].map(([k, n]) =>
         `<button type="button" role="radio" data-theme-choice="${k}" aria-checked="${SETTINGS.theme === k}" aria-selected="${SETTINGS.theme === k}">${n}</button>`).join("")}</div></section>
     <section class="panel"><h3 class="h3">Connections</h3>
-      <p class="lede">Keys are kept on the computer running Leadline, in a file called <b>.env</b> in the app folder, never in the website. After adding a key, restart Leadline.</p>
-      ${key(SERVER.google, "Google Maps", "Finds businesses with reviews and open or closed status.", "Without it we use a free public map, which finds fewer businesses and is sometimes busy. Add GOOGLE_MAPS_API_KEY to .env.")}
-      ${key(SERVER.claude, "Claude", "Reads websites for owners’ names and fit, reads your website and files, and writes emails.", "Without it you fill in the questions yourself and emails use a template. Add ANTHROPIC_API_KEY to .env.")}</section>
+      <p class="lede">Paste a key and press Save. It works right away. Keys are saved only on the computer running Leadline, in its <b>.env</b> file, and are never shown again.</p>
+      <div id="kErr"></div>
+      ${key("google", SERVER.google, "Google Maps", "Finds businesses with reviews and open or closed status.", "Without it we use a free public map, which finds fewer businesses and is sometimes busy. Get a key in Google Cloud Console with Places API (New) turned on.", "Paste your Google Maps key")}
+      ${key("claude", SERVER.claude, "Claude", "Reads websites for owners’ names and fit, reads your website and files, and writes emails.", "Without it you fill in the questions yourself and emails use a template. Get a key at platform.claude.com under API keys.", "Paste your Claude key (starts with sk-ant-)")}
     <section class="panel"><h3 class="h3">Start over</h3><p class="lede">Remove every business, search, lead and draft saved in this browser. Sample businesses come back as they were.</p>
       <div class="go"><button class="btn ghost" type="button" id="sClearAll" style="color:var(--warn)">Clear everything on this browser</button></div></section>
   </div>`;
@@ -1045,6 +1051,26 @@ document.addEventListener("click", e => {
     try { Object.keys(localStorage).filter(k => k.startsWith("ll4-")).forEach(k => localStorage.removeItem(k)); } catch(err){}
     location.reload();
   }
+});
+
+async function saveKey(id, value){
+  try {
+    SERVER = await post("/api/keys", {[id]: value});
+    sampleFn = SERVER.claude ? {} : null;
+    renderSettings(); renderFind(); renderBusiness();
+    toast(value ? `${id === "google" ? "Google Maps" : "Claude"} key saved. It’s working now.` : "Key removed.");
+  } catch(e){ $("kErr").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-key-form]"); if (!f) return;
+  e.preventDefault();
+  const v = f.querySelector("input").value.trim(); f.querySelector("input").value = "";
+  if (!v) { $("kErr").innerHTML = `<div class="err">Paste the key first.</div>`; return; }
+  saveKey(f.dataset.keyForm, v);
+});
+document.addEventListener("click", e => {
+  const r = e.target.closest("[data-key-remove]"); if (!r) return;
+  if (confirm("Remove this key from Leadline?")) saveKey(r.dataset.keyRemove, "");
 });
 
 /* ---------- CSV export, in the columns of the business owner's sample sheet ---------- */
@@ -1167,7 +1193,7 @@ function renderFind(){
       <div class="go"><button class="btn" type="button" id="fFill">Fill in the choices for me</button></div></section>` : ""}
     <section class="panel"><h2>New search</h2><p class="lede">Choose what kinds of businesses and where. Run as many searches as you like, for example cafés today and law firms tomorrow.</p>
       <span class="qlabel">What kinds of businesses?</span>${chips("types", o.types, true, "find", otherChip("fOtherBox", otherOn, "Other…"))}
-      <div id="fOtherBox"${otherOn ? "" : " hidden"}><label class="field"><span>Other kinds of businesses</span><input id="fOther" value="${esc(FIND.types_other)}" placeholder="Example: dog groomers"></label></div>
+      <div id="fOtherBox"${otherOn ? "" : " hidden"}><label class="field"><span>Other kinds of businesses to find, like “dog groomers” or “dentists”. Not what you sell.</span><input id="fOther" value="${esc(FIND.types_other)}" placeholder="Example: dog groomers"></label></div>
       <span class="qlabel">How far?</span>${chips("radius", o.radius, false, "find")}
       <label class="field"><span>${anywhere && SERVER.google ? "City or state to start from (optional)" : "City to search around"}</span><input id="fCity" value="${esc(FIND.city)}" placeholder="Example: Seattle, WA"></label>
       ${anywhere && !SERVER.google ? `<p class="note">Without a Google key we can’t search the whole country, so we’ll search widely around the city you enter.</p>` : ""}
