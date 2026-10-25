@@ -19,7 +19,7 @@ from urllib.parse import quote, quote_plus, unquote, urljoin, urlparse
 
 import requests
 
-UA = "LeadFinder/1.0 (small-business lead research; github.com/karleybrowning/claude-impact-lab)"
+UA = "LeadFinder/1.0 (small-business lead research; github.com/Leadline-Claude-Impact-Lab/claude-impact-lab)"
 
 # ---------------------------------------------------------------- what owners can pick
 TYPES = {

@@ -13,7 +13,7 @@ You need **Python 3.10 or newer**. Check with `python3 --version`. If it's older
 1. Get the code and open the app folder:
 
    ```bash
-   git clone https://github.com/Genie-Claude-Impact-Lab/claude-impact-lab.git
+   git clone https://github.com/Leadline-Claude-Impact-Lab/claude-impact-lab.git
    cd claude-impact-lab/app
    ```
 
