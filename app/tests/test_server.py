@@ -74,3 +74,35 @@ def test_searches_are_limited_per_visitor(client, monkeypatch):
 def test_draft_without_claude_uses_the_template(client):
     out = client.post("/api/draft", json={"sender": {"company": "Flowstack"}, "lead": {"business_name": "Harbor Bookkeeping"}}).json()
     assert out["by"] == "template" and "no thanks" in out["body"]
+
+
+def test_busy_free_map_gets_a_plain_message():
+    msg = server.plain_error("The free map service is busy right now. Wait a minute and press Find leads again. (Errors: SSLError ...)")
+    assert "Google key" in msg and "SSLError" not in msg
+
+
+def test_anywhere_in_the_us_needs_no_city_with_google(client):
+    d = wait(client, client.post("/api/search", json={"profile": {**PROFILE, "city": "", "radius": finder.ANYWHERE}}).json()["job_id"])
+    assert d["state"] == "done", d.get("error")
+    assert not any("outside the area" in c["next"] for c in d["result"]["leads"])
+
+
+def test_read_business_needs_claude(client):
+    r = client.post("/api/read-business", json={"text": "We are Harbor Bookkeeping."})
+    assert r.status_code == 400 and "Claude key" in r.json()["detail"]
+
+
+def test_read_business_fills_profile_from_text(client, monkeypatch):
+    class C:
+        messages = None
+        def __init__(self): self.messages = self; self.prompt = ""
+        def create(self, model, max_tokens, messages):
+            self.prompt = messages[0]["content"]
+            out = '{"company": "Harbor Bookkeeping", "sell": "monthly bookkeeping", "problem": "", "made_up": "x"}'
+            return type("M", (), {"content": [type("B", (), {"type": "text", "text": out})()]})()
+    c = C()
+    monkeypatch.setattr(server, "CLAUDE_KEY", "k")
+    monkeypatch.setattr(server, "_claude", c)
+    d = client.post("/api/read-business", json={"text": "Harbor Bookkeeping does monthly bookkeeping."}).json()
+    assert d["company"] == "Harbor Bookkeeping" and d["sell"] == "monthly bookkeeping"
+    assert set(d) == set(server.PROFILE_FIELDS) and "information only" in c.prompt

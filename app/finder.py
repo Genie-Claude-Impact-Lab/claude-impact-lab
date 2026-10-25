@@ -33,9 +33,13 @@ TYPES = {
     "Restaurants and cafes": {"google": ["restaurant", "cafe"], "osm": ['amenity~"^(restaurant|cafe)$"']},
     "Salons and spas": {"google": ["hair salon", "day spa"], "osm": ['shop~"^(hairdresser|beauty|massage)$"']},
 }
-RADIUS_MILES = {"5 miles": 5, "10 miles": 10, "25 miles": 25}
+ANYWHERE = "Anywhere in the US"
+RADIUS_MILES = {"5 miles": 5, "10 miles": 10, "25 miles": 25, ANYWHERE: None}
+FREE_MAP_WIDEST = 50   # the free map can't search the whole country, so "anywhere" means this far around the city
 DECIDER_WORDS = {
     "The owner": ["owner", "founder", "co-founder", "president", "ceo", "principal", "proprietor", "partner", "managing member"],
+    "A founder": ["founder", "co-founder", "ceo"],
+    "Business development": ["business development", "partnerships", "bd ", "growth"],
     "A manager": ["manager", "director", "gm"],
     "An office manager": ["office manager", "administrator", "office admin"],
     "A marketing person": ["marketing"],
@@ -107,9 +111,9 @@ def parse_google(p: dict) -> dict:
     }
 
 
-def google_search(query: str, key: str, center, radius_mi: float, limit: int) -> list[dict]:
-    body = {"textQuery": query, "pageSize": min(20, limit)}
-    if center:
+def google_search(query: str, key: str, center, radius_mi, limit: int) -> list[dict]:
+    body = {"textQuery": query, "pageSize": min(20, limit), "regionCode": "US"}
+    if center and radius_mi:
         body["locationBias"] = {"circle": {"center": {"latitude": center[0], "longitude": center[1]},
                                            "radius": min(radius_mi * 1609.34, 50000.0)}}
     out, token = [], None
@@ -474,9 +478,20 @@ Return ONLY JSON: {{"sell": "", "types": [], "types_other": "", "city": "", "rad
             "deciders": pick(d.get("deciders"), DECIDER_WORDS) or ["The owner"], "signals": pick(d.get("signals"), SIGNALS)}
 
 
+def seller_summary(profile: dict) -> str:
+    """What we know about the owner's business and best customers, for judging fit."""
+    parts = [f"They sell: {profile.get('sell') or 'their services'}."]
+    for key, label in (("problem", "The problem they solve"), ("ideal_customer", "Their ideal customer"),
+                       ("best_customers", "Their best current customers")):
+        if (profile.get(key) or "").strip():
+            parts.append(f"{label}: {profile[key].strip()}")
+    return "\n".join(parts)
+
+
 def claude_read_site(client, model: str, profile: dict, business: str, about_text: str) -> dict:
     """Read a business's website: who runs it, what they do, and how much they might need what the owner sells."""
-    msg = client.messages.create(model=model, max_tokens=400, messages=[{"role": "user", "content": f"""You help a small business owner who sells: {profile.get('sell') or 'their services'}.
+    msg = client.messages.create(model=model, max_tokens=400, messages=[{"role": "user", "content": f"""You help a small business owner find customers.
+{seller_summary(profile)}
 Here is text from the website of “{business}”, a possible customer:
 \"\"\"{about_text[:5000]}\"\"\"
 
@@ -609,6 +624,7 @@ def score(lead: dict, profile: dict) -> dict:
 
     name, title = lead.get("contact_name", ""), (lead.get("contact_title") or "").lower()
     words = [w for d in (profile.get("deciders") or ["The owner"]) for w in DECIDER_WORDS.get(d, [])]
+    words += [r.strip().lower() for r in profile.get("deciders_other", []) if r.strip()]
     if name and any(w in title for w in words):
         pts += 20
         why.append(f"You know who to ask for: {name}{', ' + lead['contact_title'] if lead.get('contact_title') else ''}.")
@@ -716,12 +732,17 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
     if not queries:
         raise SearchError("Pick at least one kind of business.")
     city = (profile.get("city") or "").strip()
-    if not city:
-        raise SearchError("Tell us which city to search around.")
+    anywhere = profile.get("radius") == ANYWHERE
+    if not city and not (anywhere and google_key):
+        raise SearchError("Tell us which city to search around." if not anywhere else
+                          "Searching anywhere in the US needs a Google key. Add a city to search around it instead.")
     radius = RADIUS_MILES.get(profile.get("radius", ""), 10)
+    if anywhere and not google_key:
+        radius = FREE_MAP_WIDEST
+        log(f"The free map can't search the whole country, so we searched {FREE_MAP_WIDEST} miles around {city}.")
 
     progress("Finding your city…", 0.02)
-    center = geocode(city)
+    center = geocode(city) if city else None
 
     progress("Searching for businesses…", 0.05)
     if google_key:
@@ -729,7 +750,7 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
         per = max(5, math.ceil(limit / len(queries)))
         found = []
         for q in queries:
-            found += google_search(f"{q} in {city}", google_key, center, radius, per)
+            found += google_search(f"{q} in {city}" if city else f"{q} in the United States", google_key, center, radius, per)
     else:
         source = "OpenStreetMap"
         filters = [f for t in types for f in TYPES.get(t, {}).get("osm", [])]
@@ -757,7 +778,7 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
             l["is_chain"] = True
         d = miles_between(center, l.get("latlon"))
         l["distance_mi"] = d
-        l["outside_area"] = d is not None and d > radius * 1.15
+        l["outside_area"] = bool(radius) and d is not None and d > radius * 1.15
         l["do_not_contact"] = norm(l["business_name"]) in {norm(x) for x in dnc}
         l["flags"] = []
     leads.sort(key=lambda l: (l["outside_area"], not (l.get("website") or l.get("listed_email")), l.get("distance_mi") or 0))

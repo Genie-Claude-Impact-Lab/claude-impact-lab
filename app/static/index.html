@@ -275,6 +275,11 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
 .arow span{color:var(--muted);font-size:14px}
 .arow form{display:flex;gap:8px;flex-wrap:wrap}
 .arow input{flex:1 1 220px;border:1px solid var(--line);background:var(--canvas);border-radius:999px;padding:10px 16px;min-height:44px;font-size:15px}
+.banner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--card);border:1px solid var(--blue);border-radius:22px;padding:12px 12px 12px 20px;margin-bottom:18px;font-size:15px}
+.banner span{flex:1;min-width:200px}
+.h3{font-size:20px;font-weight:400;margin:0 0 6px;letter-spacing:-.01em}
+.pill-in{border:1px solid var(--line);background:var(--canvas);border-radius:999px;padding:10px 16px;min-height:46px;font-size:15px;min-width:0}
+.find .btn:not(.dark):not(.ghost){background:transparent}
 .warnbox{background:rgba(184,101,12,.12);border-radius:14px;padding:10px 14px;margin:0 26px 18px;font-size:14px}
 </style>
 </head>
@@ -283,10 +288,10 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
   <nav class="side" id="side" aria-label="Main">
     <div class="brand">Leadline</div>
     <div class="seller" id="sellerCard"></div>
-    <button class="nav" type="button" data-go="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Find leads</span></button>
+    <button class="nav" type="button" data-go="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>New search</span></button>
     <button class="nav" type="button" aria-current="page" data-go="board"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Pipeline</span></button>
-    <button class="nav" type="button" data-go="profile"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Your business</span></button>
-    <button class="nav" type="button" data-import><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Import leads</span></button>
+    <button class="nav" type="button" data-go="business"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Your business profile</span></button>
+    <button class="nav" type="button" data-import><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Import a lead list (CSV)</span></button>
     <div class="sec">Who you sell to</div>
     <div id="views"></div>
     <div class="sec">Businesses</div>
@@ -310,7 +315,9 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
     <section class="agent" id="agent" hidden aria-live="polite"></section>
     <div id="filterLine"></div>
 
+    <div id="sampleBanner"></div>
     <section id="findView" hidden></section>
+    <section id="bizView" hidden></section>
     <div id="boardView">
     <div class="row">
       <section class="panel" aria-labelledby="fT">
@@ -347,21 +354,28 @@ const DATA = {"coffee": [{"lead_id": "C01", "business_name": "Second Pour Café"
 const PERSONAS = {
   mine: {
     icon:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
-    profile:{company:"", website:"", email:"", pitch:"", proof:"", cta:"a 15-minute call next week", topic:"", senderName:"", senderTitle:"", address:"", samples:""}
+    profile:{company:"", website:"", email:"", sell:"", pitch:"", problem:"", ideal_customer:"", best_customers:"", deciders:[], deciders_other:"",
+      proof:"", cta:"", topic:"", senderName:"", senderTitle:"", address:"", samples:"", read_from:""}
   },
   coffee: {
     icon:'<path d="M4 8h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M8 3v2M12 3v2"/>',
     profile:{company:"Ridgeline Coffee Roasters", website:"https://ridgelinecoffee.example.com", email:"mk@ridgelinecoffee.example.com",
       pitch:"roast small-batch specialty coffee and deliver it within 48 hours of roasting, with free barista training for wholesale partners",
       proof:"When Harbor Light Café switched to us last spring, their retail bag sales doubled in three months.",
-      cta:"a free tasting box next week", topic:"your coffee", senderName:"MK", senderTitle:"Founder"}
+      cta:"a free tasting box next week", topic:"your coffee", senderName:"MK", senderTitle:"Founder",
+      sell:"small-batch specialty coffee beans for cafés and bakeries", problem:"Their beans arrive weeks after roasting, so drinks taste flat and retail bags don’t sell.",
+      ideal_customer:"Independent cafés and bakeries in the Seattle area that pour specialty coffee and sell retail bags.",
+      best_customers:"Harbor Light Café, neighborhood espresso bars", deciders:["The owner"], address:"1200 Western Ave, Seattle, WA 98101", read_from:"ridgelinecoffee.example.com"}
   },
   saas: {
     icon:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
     profile:{company:"Flowstack Automation", website:"https://flowstack.example.com", email:"mk@flowstack.example.com",
       pitch:"automate bank and card reconciliation, invoice matching and month-end close for small finance teams",
       proof:"One of our customers cut their monthly reconciliation from 2–3 days to under an hour.",
-      cta:"a 15-minute call next week", topic:"month-end reconciliation", senderName:"MK", senderTitle:"Founder"}
+      cta:"a 15-minute call next week", topic:"month-end reconciliation", senderName:"MK", senderTitle:"Founder",
+      sell:"software that automates month-end reconciliation and invoice matching", problem:"Month-end close takes two or three days of manual reconciliation and invoice matching.",
+      ideal_customer:"Owner-run accounting and bookkeeping firms and small finance teams with 2 to 20 people.",
+      best_customers:"small CPA firms, bookkeeping services, property managers", deciders:["The owner","An office manager"], address:"500 Union St, Seattle, WA 98101", read_from:"flowstack.example.com"}
   }
 };
 
@@ -395,7 +409,7 @@ function loadPersona(){
 }
 loadPersona();
 
-let SERVER = {google:false, claude:false, options:null}, view = LEADS.length ? "board" : "find";
+let SERVER = {google:false, claude:false, options:null}, view = LEADS.length ? "board" : (profile.sell ? "find" : "business");
 const onBoard = l => !l.tier || ["now","try","later"].includes(l.tier);
 const BOARD = () => LEADS.filter(onBoard);
 const VER = {valid:"Mailbox confirmed", domain_ok:"Domain accepts mail", accepts_all:"Can’t confirm mailbox", unknown:"Not checked"};
@@ -553,7 +567,10 @@ function renderSuggest(){
   $("askInput").placeholder = profile.company ? `Ask Leadline to find, sort or email ${profile.company}’s leads` : "Ask Leadline to find or sort your leads";
 }
 function showView(){
-  $("findView").hidden = view !== "find"; $("boardView").hidden = view === "find"; $("suggest").hidden = view === "find";
+  $("findView").hidden = view !== "find"; $("bizView").hidden = view !== "business"; $("boardView").hidden = view !== "board";
+  $("suggest").hidden = $("askForm").hidden = view !== "board";
+  $("sampleBanner").innerHTML = persona === "mine" ? "" : `<div class="banner"><span>You’re looking at a sample business, <b>${esc(profile.company)}</b>. Nothing here is real.</span>
+    <button class="btn dark" type="button" data-persona="mine">Switch to your business</button></div>`;
   document.querySelectorAll(".nav[data-go]").forEach(b => b.dataset.go === view ? b.setAttribute("aria-current","page") : b.removeAttribute("aria-current"));
 }
 function renderAll(){ renderSide(); renderFunnel(); renderTasks(); renderBoard(); renderAside(); renderSuggest(); showView(); }
@@ -753,36 +770,146 @@ Reply with only a JSON object: {"subject": string, "body": string}`;
   } finally { if ($("aiBtn")) $("aiBtn").disabled = false; }
 }
 
-/* ---------- your business ---------- */
-function openProfile(){
-  openId = null;
-  $("dTitle").innerHTML = `Your business<div class="sub">Every email combines this with what Leadline learns about each lead.</div>`;
-  $("dBody").innerHTML = `<section class="panel" style="grid-column:1/-1;max-width:780px">
-    <div class="two"><label class="field"><span>Company name</span><input id="fCompany" value="${esc(profile.company)}"></label><label class="field"><span>Website</span><input id="fWebsite" value="${esc(profile.website)}"></label></div>
-    <label class="field"><span>What you do: finish the sentence “We…”</span><textarea id="fPitch" style="min-height:80px">${esc(profile.pitch)}</textarea></label>
-    <label class="field"><span>A result one of your customers got</span><textarea id="fProof" style="min-height:70px">${esc(profile.proof)}</textarea></label>
-    <div class="two"><label class="field"><span>First step you offer, e.g. “a free tasting box next week”</span><input id="fCta" value="${esc(profile.cta)}"></label>
-    <label class="field"><span>What a buyer calls what you sell, e.g. “your coffee”</span><input id="fTopic" value="${esc(profile.topic)}"></label></div>
-    <div class="two"><label class="field"><span>Your name</span><input id="fName" value="${esc(profile.senderName)}"></label><label class="field"><span>Your title</span><input id="fTitle" value="${esc(profile.senderTitle)}"></label></div>
-    <div class="two"><label class="field"><span>Your email</span><input id="fEmail" type="email" value="${esc(profile.email)}"></label>
-    <label class="field"><span>Business address (the law requires it in sales emails)</span><input id="fAddress" value="${esc(profile.address || "")}"></label></div>
-    <label class="field"><span>Emails you've written before (optional). Paste a few, or add a text file, so drafts sound like you.</span><textarea id="fSamples" style="min-height:120px">${esc(profile.samples || "")}</textarea></label>
-    <label class="field"><span>Add a file (.txt, .md or .eml)</span><input id="fSampleFile" type="file" accept=".txt,.md,.eml,text/plain"></label></section>`;
-  $("dActions").innerHTML = `<button class="btn ghost" type="button" id="resetProfile">Restore sample profile</button><span class="grow"></span><button class="btn dark" type="button" id="saveProfile">Save profile</button>`;
-  $("saveProfile").addEventListener("click", () => {
-    const v = id => $(id).value.trim();
-    profile = {company:v("fCompany") || PERSONAS[persona].profile.company, website:v("fWebsite"), pitch:v("fPitch").replace(/^we\s+/i,"").replace(/\.$/,""), proof:v("fProof"),
-      cta:v("fCta").replace(/\?$/,""), topic:v("fTopic"), senderName:v("fName") || "You", senderTitle:v("fTitle"), email:v("fEmail"), address:v("fAddress"), samples:v("fSamples")};
-    store.set(K("profile"), profile); closeDrawer(); renderFind(); toast("Profile saved. Every email now uses it.");
-  });
-  $("fSampleFile").addEventListener("change", async e => {
-    const f = e.target.files[0]; if (!f) return;
-    try { $("fSamples").value = ($("fSamples").value + "\n\n" + await f.text()).trim().slice(0, 8000); toast("Added. Save your profile to use it."); }
-    catch(err){ toast("That file couldn’t be read. Try a plain text file."); }
-  });
-  $("resetProfile").addEventListener("click", () => { profile = {...PERSONAS[persona].profile}; store.set(K("profile"), profile); openProfile(); toast("Sample profile restored"); });
-  openDrawer();
+/* ---------- your business profile (set up once) ---------- */
+const words = s => String(s || "").trim().split(/\s+/).filter(Boolean).length;
+// Points for what actually improves matches and emails, not for boxes filled in.
+function strength(){
+  const p = profile, roles = (p.deciders || []).length || (p.deciders_other || "").trim();
+  const parts = [
+    [words(p.ideal_customer) >= 6 ? 14 : words(p.ideal_customer) ? 5 : 0, 14, "describe your ideal customer (their size and situation)"],
+    [words(p.problem) >= 6 ? 14 : words(p.problem) ? 5 : 0, 14, "say what problem you solve for them"],
+    [words(p.sell) >= 4 ? 10 : words(p.sell) ? 4 : 0, 10, "say specifically what you sell"],
+    [words(p.best_customers) ? 10 : 0, 10, "name a few of your best customers"],
+    [p.read_from ? 8 : 0, 8, "add your website or a document so we can read about you"],
+    [roles ? 4 : 0, 4, "say who you usually talk to"],
+    [p.company && p.pitch ? 10 : p.company || p.pitch ? 5 : 0, 10, "add your company name and what you do"],
+    [p.proof ? 10 : 0, 10, "add a result a customer got"],
+    [words(p.samples) >= 30 ? 10 : words(p.samples) ? 4 : 0, 10, "paste a few emails you’ve written"],
+    [p.cta ? 5 : 0, 5, "say what first step you offer"],
+    [p.address ? 5 : 0, 5, "add your business address"]];
+  const score = parts.reduce((s, x) => s + x[0], 0);
+  const next = parts.filter(x => x[0] < x[1]).sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).slice(0, 2).map(x => x[2]);
+  return {score, next, level: score >= 70 ? "Strong" : score >= 40 ? "Good" : "Basic"};
 }
+function strengthHTML(){
+  const s = strength();
+  const say = {Basic:"expect weak matches", Good:"decent matches", Strong:"we have what we need"}[s.level];
+  return `<div class="prog"><span>Profile strength: <b style="font-weight:500">${s.level}</b>, ${say}</span><span>${s.score}/100</span></div>
+    <div class="bar"><i style="width:${s.score}%"></i></div>
+    <p class="note">${s.next.length ? `Next: ${esc(s.next.join(", then "))}.` : "Great. Your searches and emails use all of this."}
+    ${SERVER.claude ? "" : " Without a Claude key, these details only improve your emails, not which businesses we pick."}</p>`;
+}
+function chips(name, options, multi, src, extra = ""){
+  const obj = src === "profile" ? profile : FIND, val = obj[name];
+  return `<div class="chips" data-chips="${name}" data-src="${src || "find"}" data-multi="${multi ? 1 : 0}" role="group">${options.map(o =>
+    `<button type="button" class="chip" data-val="${esc(o)}" aria-pressed="${multi ? (val || []).includes(o) : String(val) === o}">${esc(o)}</button>`).join("")}${extra}</div>`;
+}
+function otherChip(id, on, label){
+  return `<button type="button" class="chip" data-other="${id}" aria-pressed="${!!on}" aria-controls="${id}">${esc(label)}</button>`;
+}
+const PROFILE_EXAMPLE = {company:"Flowstack Automation", website:"", sell:"software that automates month-end reconciliation and invoice matching",
+  pitch:"automate bank and card reconciliation, invoice matching and month-end close for small finance teams",
+  problem:"Month-end close takes two or three days of manual reconciliation, and invoices pile up while the team catches up.",
+  ideal_customer:"Owner-run accounting and bookkeeping firms with 2 to 20 staff that close books for small businesses every month.",
+  best_customers:"small CPA firms, bookkeeping services, property managers", deciders:["The owner"], deciders_other:"",
+  proof:"One of our customers cut their monthly reconciliation from 2 to 3 days to under an hour.", cta:"a 15-minute call next week",
+  topic:"month-end reconciliation", senderName:"MK", senderTitle:"Founder"};
+function field(id, label, key, opts = {}){
+  const val = esc(profile[key] || ""), ph = opts.ph ? ` placeholder="${esc(opts.ph)}"` : "";
+  return `<label class="field"><span>${label}</span>${opts.area ? `<textarea id="${id}" data-key="${key}" style="min-height:${opts.area}px"${ph}>${val}</textarea>`
+    : `<input id="${id}" data-key="${key}" value="${val}"${ph}${opts.type ? ` type="${opts.type}"` : ""}>`}</label>`;
+}
+function renderBusiness(){
+  const o = SERVER.options || {deciders:["The owner"]};
+  const otherOn = profile.deciders_other_on || !!(profile.deciders_other || "").trim();
+  $("bizView").innerHTML = `<div class="find">
+    <section class="panel"><h2>Your business profile</h2>
+      <p class="lede">Set this up once. We use it to judge which businesses are a good fit and to write emails that sound like you. Each search can then look in different places for different kinds of businesses.</p>
+      <div id="bStrength" style="margin-top:16px">${strengthHTML()}</div></section>
+    <section class="panel"><h3 class="h3">Start with what you already have</h3>
+      <p class="lede">Paste your website or add a file, like a brochure, a pitch or emails you’ve sent. We read it and fill in the questions below, and you can change anything afterwards.</p>
+      <div class="go"><input id="bUrl" class="pill-in" placeholder="yourbusiness.com" value="${esc(profile.website || "")}" style="flex:1 1 220px">
+        <button class="btn dark" type="button" id="bRead"${SERVER.claude ? "" : " disabled"}>Read my website</button>
+        <label class="btn" style="cursor:pointer">Add a file<input id="bFile" type="file" accept=".txt,.md,.eml,.csv,.html,text/plain" class="sr"></label></div>
+      <p class="note">${SERVER.claude ? "Text files work best (.txt, .md, .eml). We never share what you add." : "Reading your website or files needs a Claude key. Files you add are kept as sample emails."}</p>
+      ${profile.read_from ? `<p class="note">Read from: ${esc(profile.read_from)}</p>` : ""}<div id="bErr"></div></section>
+    <section class="panel"><h3 class="h3">Who you are and who you sell to</h3>
+      <p class="lede">This decides which businesses we pick. The more specific, the better the matches.</p>
+      <div class="two">${field("bCompany", "Company name", "company")}${field("bWebsite", "Website", "website")}</div>
+      ${field("bSell", "What do you sell? Be specific.", "sell", {ph:"Example: software that automates month-end reconciliation"})}
+      ${field("bProblem", "What problem do your customers have right before they need you?", "problem", {area:70, ph:"Example: month-end close takes days and invoices pile up"})}
+      ${field("bIdeal", "Describe your ideal customer: their size, situation, what they’re like.", "ideal_customer", {area:70, ph:"Example: owner-run bookkeeping firms with 2 to 20 staff"})}
+      ${field("bBest", "Name a few of your best current customers, or the kinds of businesses they are.", "best_customers", {ph:"Example: Harbor CPA, small property managers"})}
+      <span class="qlabel">Who do you usually talk to? Pick any.</span>
+      ${chips("deciders", o.deciders, true, "profile", otherChip("bRoles", otherOn, "Other…"))}
+      <div id="bRoles"${otherOn ? "" : " hidden"}>${field("bRolesIn", "Other roles, separated by commas", "deciders_other", {ph:"Example: head of operations, practice manager"})}</div>
+    </section>
+    <section class="panel"><h3 class="h3">For your emails</h3>
+      <p class="lede">Every email combines this with what we learn about each business.</p>
+      ${field("bPitch", "What you do: finish the sentence “We…”", "pitch", {area:60})}
+      ${field("bProof", "A result one of your customers got", "proof", {area:60})}
+      <div class="two">${field("bCta", "First step you offer, e.g. “a 15-minute call next week”", "cta")}${field("bTopic", "What a buyer calls what you sell, e.g. “your bookkeeping”", "topic")}</div>
+      <div class="two">${field("bName", "Your name", "senderName")}${field("bTitle", "Your title", "senderTitle")}</div>
+      <div class="two">${field("bEmail", "Your email", "email", {type:"email"})}${field("bAddress", "Business address (the law requires it in sales emails)", "address")}</div>
+      ${field("bSamples", "Emails you’ve written before. Paste a few so drafts sound like you.", "samples", {area:110})}
+    </section>
+    <div class="go"><button class="btn dark big" type="button" id="bSearch">Save and start a search</button>
+      <button class="btn" type="button" id="bSave">Save profile</button>
+      ${persona === "mine" ? `<button class="btn ghost" type="button" id="bExample">Fill with an example</button><button class="btn ghost" type="button" id="bFresh">Start fresh</button>`
+        : `<button class="btn ghost" type="button" id="bRestore">Restore sample profile</button>`}</div>
+  </div>`;
+}
+function readBusiness(){
+  document.querySelectorAll("#bizView [data-key]").forEach(el => {
+    const k = el.dataset.key, v = el.value.trim();
+    profile[k] = k === "pitch" ? v.replace(/^we\s+/i, "").replace(/\.$/, "") : v;
+  });
+  store.set(K("profile"), profile);
+}
+function refreshStrength(){ ["bStrength","fStrength"].forEach(id => { if ($(id)) $(id).innerHTML = strengthHTML(); }); renderSide(); }
+async function readFromSource(body, btn, label){
+  readBusiness();
+  const before = btn.textContent; btn.disabled = true; btn.textContent = "Reading…"; $("bErr").innerHTML = "";
+  try {
+    const d = await post("/api/read-business", body);
+    Object.entries(d).forEach(([k, v]) => { if (v) profile[k] = k === "pitch" ? v.replace(/^we\s+/i, "") : v; });
+    if (body.url) profile.website = profile.website || body.url;
+    profile.read_from = [profile.read_from, label].filter(Boolean).join(", ");
+    store.set(K("profile"), profile); renderBusiness(); renderSide(); toast("Filled in from what you added. Check it and change anything that’s off.");
+  } catch(e){ btn.disabled = false; btn.textContent = before; $("bErr").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+function startFresh(){
+  if (!confirm("Clear your business profile, your search and your leads, and start from scratch?")) return;
+  ["profile","search","stages","drafts","import"].forEach(k => store.set(K(k), null));
+  try { localStorage.removeItem(FIND_KEY); } catch(e){}
+  FIND = Object.assign({}, FIND_DEFAULT); JOB = null; loadPersona(); view = "business"; renderBusiness(); renderFind(); renderAll(); toast("Starting fresh.");
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest("#bizView")) return;
+  if (e.target.closest("#bRead")){
+    const url = $("bUrl").value.trim();
+    if (!url) { $("bErr").innerHTML = `<div class="err">Paste your website address first.</div>`; return; }
+    return readFromSource({url}, $("bRead"), url);
+  }
+  if (e.target.closest("#bSave")){ readBusiness(); refreshStrength(); return toast("Profile saved. Every search and email now uses it."); }
+  if (e.target.closest("#bSearch")){ readBusiness(); view = "find"; renderFind(); renderAll(); window.scrollTo(0, 0); return; }
+  if (e.target.closest("#bExample")){ profile = {...profile, ...PROFILE_EXAMPLE}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Example filled in. Change anything you like."); }
+  if (e.target.closest("#bFresh")) return startFresh();
+  if (e.target.closest("#bRestore")){ profile = {...PERSONAS[persona].profile}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Sample profile restored."); }
+});
+document.addEventListener("input", e => { if (e.target.closest("#bizView") && e.target.dataset.key) { readBusiness(); refreshStrength(); } });
+document.addEventListener("change", async e => {
+  if (e.target.id !== "bFile") return;
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  let text = "";
+  try { text = (await f.text()).slice(0, 12000); } catch(err){ return toast("That file couldn’t be read. Try a plain text file."); }
+  readBusiness();
+  if (/\.eml$/i.test(f.name) || /^(subject|from|to):/im.test(text)) profile.samples = ((profile.samples || "") + "\n\n" + text).trim().slice(0, 8000);
+  store.set(K("profile"), profile);
+  if (SERVER.claude) return readFromSource({text}, e.target.closest("label") || $("bRead"), f.name);
+  if (!profile.samples?.includes(text.slice(0, 200))) profile.samples = ((profile.samples || "") + "\n\n" + text).trim().slice(0, 8000);
+  store.set(K("profile"), profile); renderBusiness(); renderSide(); toast("Added to your sample emails.");
+});
 
 /* ---------- CSV import ---------- */
 function importCSV(file){
@@ -828,69 +955,51 @@ async function rewriteOnServer(){
   finally { if ($("aiBtn")) $("aiBtn").disabled = false; }
 }
 
-/* ---------- find leads ---------- */
+/* ---------- new search (changes every run) ---------- */
 const FIND_KEY = "ll4-find";
-const FIND_DEFAULT = {desc:"", sell:"", types:[], types_other:"", city:"", radius:"10 miles", deciders:["The owner"], signals:[],
+const FIND_DEFAULT = {desc:"", types:[], types_other:"", other_on:false, city:"", radius:"10 miles", signals:[],
   avoid:["Chains and franchises"], how_many:"20", dnc:""};
 let FIND = Object.assign({}, FIND_DEFAULT, store.get(FIND_KEY, {}));
 let JOB = null;
-const EXAMPLE_TEXT = "I sell software that speeds up invoice and bookkeeping reviews to small accounting firms in Seattle, WA.";
-const EXAMPLE = {sell:"software that speeds up invoice and bookkeeping reviews", types:["Accounting and bookkeeping firms"], types_other:"",
-  city:"Seattle, WA", radius:"10 miles", deciders:["The owner"], signals:[], avoid:["Chains and franchises"], how_many:"20"};
-function chips(name, options, multi){
-  const val = FIND[name];
-  return `<div class="chips" data-chips="${name}" data-multi="${multi ? 1 : 0}" role="group">${options.map(o =>
-    `<button type="button" class="chip" data-val="${esc(o)}" aria-pressed="${multi ? (val || []).includes(o) : String(val) === o}">${esc(o)}</button>`).join("")}</div>`;
-}
-// How much we know about the user's business and customers, and what to add next.
-function strength(){
-  const parts = [
-    [!!(FIND.sell || "").trim(), 20, "say what you sell"],
-    [(FIND.types || []).length > 0 || !!(FIND.types_other || "").trim(), 15, "pick the kinds of businesses that buy from you"],
-    [!!(FIND.city || "").trim(), 15, "add a city"],
-    [(FIND.deciders || []).length > 0, 5, "say who you usually talk to"],
-    [!!profile.company, 10, "add your company name in Your business"],
-    [!!profile.pitch, 10, "describe what you do in Your business"],
-    [!!profile.proof, 10, "add a result a customer got"],
-    [!!profile.samples, 10, "add a few emails you've written"],
-    [!!profile.address, 5, "add your business address"]];
-  return {score: parts.reduce((s, p) => s + (p[0] ? p[1] : 0), 0), next: parts.filter(p => !p[0]).slice(0, 2).map(p => p[2])};
-}
-function strengthHTML(){
-  const s = strength();
-  return `<div class="prog"><span>Profile strength</span><span>${s.score}/100</span></div><div class="bar"><i style="width:${s.score}%"></i></div>
-    <p class="note">${s.next.length ? `To get better matches and emails, ${esc(s.next.join(" and "))}.` : "Great, we have what we need to find good matches."}</p>`;
-}
+const EXAMPLE_TEXT = "Small accounting and bookkeeping firms in Seattle, WA.";
+const EXAMPLE = {types:["Accounting and bookkeeping firms"], types_other:"", other_on:false, city:"Seattle, WA", radius:"10 miles",
+  signals:[], avoid:["Chains and franchises"], how_many:"20"};
+// Searches used to hold "what you sell" and "who you talk to"; those now live in the profile.
+if (persona === "mine" && !profile.sell && FIND.sell) { profile.sell = FIND.sell; profile.deciders = FIND.deciders || []; store.set(K("profile"), profile); }
 function stars(l){
   if (!l.tier) return "";
   const n = l.business_score >= 85 ? 5 : l.business_score >= 70 ? 4 : l.business_score >= 50 ? 3 : l.business_score >= 30 ? 2 : 1;
   return `<span class="stars" title="${n} of 5 stars" aria-label="${n} of 5 stars">${"★".repeat(n)}<span>${"★".repeat(5 - n)}</span></span>`;
 }
 function renderFind(){
-  const o = SERVER.options || {types:[], radius:["5 miles","10 miles","25 miles"], deciders:["The owner"], signals:["No website"]};
-  const running = JOB && JOB.state === "running";
-  const ex = `<button class="btn" type="button" id="fExample">Try an example</button>`;
+  const o = SERVER.options || {types:[], radius:["5 miles","10 miles","25 miles","Anywhere in the US"], signals:["No website"]};
+  const running = JOB && JOB.state === "running", anywhere = FIND.radius === "Anywhere in the US";
+  const otherOn = FIND.other_on || !!(FIND.types_other || "").trim();
+  const ready = !!(profile.sell || "").trim();
   $("findView").innerHTML = `<div class="find">
-    <section class="panel" id="fStrength">${strengthHTML()}</section>
-    ${SERVER.claude ? `<section class="panel"><h2>Who do you sell to?</h2><p class="lede">Say it in a sentence. We’ll fill in the details for you.</p>
-      <label class="field"><span class="sr">Your business in a sentence</span><textarea id="fDesc" style="min-height:90px" placeholder="Example: ${esc(EXAMPLE_TEXT)}">${esc(FIND.desc)}</textarea></label>
-      <div class="go"><button class="btn dark" type="button" id="fFill">Fill in the details for me</button>${ex}</div></section>` : ""}
-    <section class="panel"><h2>${SERVER.claude ? "Check the details" : "Tell us about your customers"}</h2>
-      ${SERVER.claude ? `<p class="lede">Change anything that’s not right.</p>` : `<div class="go" style="margin-top:6px">${ex}</div>`}
-      <label class="field"><span>What do you sell?</span><input id="fSell" value="${esc(FIND.sell)}" placeholder="Example: bookkeeping software"></label>
-      <span class="qlabel">What kinds of businesses buy from you?</span>${chips("types", o.types, true)}
-      <label class="field"><span>Something else? Type it here.</span><input id="fOther" value="${esc(FIND.types_other)}" placeholder="Example: dog groomers"></label>
-      <label class="field"><span>City to search around</span><input id="fCity" value="${esc(FIND.city)}" placeholder="Example: Seattle, WA"></label>
-      <span class="qlabel">How far from there?</span>${chips("radius", o.radius, false)}
-      <span class="qlabel">Who do you usually talk to?</span>${chips("deciders", o.deciders, true)}
+    <section class="panel"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:220px">
+      <h3 class="h3">Searching for ${esc(profile.company || "your business")}</h3>
+      <p class="lede">${ready ? `You sell ${esc(profile.sell)}.` : "Set up your business profile first, so we know what you sell and who buys it."}</p></div>
+      <button class="btn${ready ? "" : " dark"}" type="button" data-go="business">${ready ? "Improve your profile" : "Set up your profile"}</button></div>
+      <div id="fStrength" style="margin-top:14px">${strengthHTML()}</div></section>
+    ${SERVER.claude ? `<section class="panel"><h3 class="h3">Describe this search</h3><p class="lede">Say where to look and what kinds of businesses, and we’ll fill in the choices below.</p>
+      <label class="field"><span class="sr">This search in a sentence</span><textarea id="fDesc" style="min-height:70px" placeholder="Example: ${esc(EXAMPLE_TEXT)}">${esc(FIND.desc)}</textarea></label>
+      <div class="go"><button class="btn" type="button" id="fFill">Fill in the choices for me</button></div></section>` : ""}
+    <section class="panel"><h2>New search</h2><p class="lede">Choose what kinds of businesses and where. Run as many searches as you like, for example cafés today and law firms tomorrow.</p>
+      <span class="qlabel">What kinds of businesses?</span>${chips("types", o.types, true, "find", otherChip("fOtherBox", otherOn, "Other…"))}
+      <div id="fOtherBox"${otherOn ? "" : " hidden"}><label class="field"><span>Other kinds of businesses</span><input id="fOther" value="${esc(FIND.types_other)}" placeholder="Example: dog groomers"></label></div>
+      <span class="qlabel">How far?</span>${chips("radius", o.radius, false, "find")}
+      <label class="field"><span>${anywhere && SERVER.google ? "City or state to start from (optional)" : "City to search around"}</span><input id="fCity" value="${esc(FIND.city)}" placeholder="Example: Seattle, WA"></label>
+      ${anywhere && !SERVER.google ? `<p class="note">Without a Google key we can’t search the whole country, so we’ll search widely around the city you enter.</p>` : ""}
       <details><summary>More options</summary>
-        <span class="qlabel">What tells you a business needs you?</span>${chips("signals", o.signals, true)}
-        <span class="qlabel">Who should we skip?</span>${chips("avoid", ["Chains and franchises"], true)}
-        <span class="qlabel">How many businesses should we look at?</span>${chips("how_many", ["20","40","60"], false)}
+        <span class="qlabel">What tells you a business needs you?</span>${chips("signals", o.signals, true, "find")}
+        <span class="qlabel">Who should we skip?</span>${chips("avoid", ["Chains and franchises"], true, "find")}
+        <span class="qlabel">How many businesses should we look at?</span>${chips("how_many", ["20","40","60"], false, "find")}
         <label class="field"><span>Businesses you never want to contact (one per line)</span><textarea id="fDnc" style="min-height:80px">${esc(FIND.dnc)}</textarea></label>
       </details>
-      <div class="go"><button class="btn dark big" type="button" id="fGo"${running ? " disabled" : ""}>${running ? "Finding leads…" : "Find leads"}</button></div>
-      <p class="modeline">${SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses. Add a Google key for fuller results."}
+      <div class="go"><button class="btn dark big" type="button" id="fGo"${running ? " disabled" : ""}>${running ? "Finding leads…" : "Find leads"}</button>
+        <button class="btn ghost" type="button" id="fExample">Try an example</button></div>
+      <p class="modeline">${SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses and is sometimes busy. Add a Google key for fuller, reliable results."}
         ${SERVER.claude ? "" : " Add a Claude key for owner names, fit and written emails."} It usually takes 30 to 60 seconds.</p>
       <div id="fErr"></div><div id="fProg"></div>
     </section></div>`;
@@ -898,8 +1007,7 @@ function renderFind(){
 }
 function readFind(){
   const v = id => $(id) ? $(id).value : null;
-  if (v("fDesc") !== null) FIND.desc = v("fDesc");
-  ["fSell:sell","fOther:types_other","fCity:city","fDnc:dnc"].forEach(p => { const [id, k] = p.split(":"); if (v(id) !== null) FIND[k] = v(id); });
+  ["fDesc:desc","fOther:types_other","fCity:city","fDnc:dnc"].forEach(p => { const [id, k] = p.split(":"); if (v(id) !== null) FIND[k] = v(id); });
   store.set(FIND_KEY, FIND);
 }
 function renderProgress(){
@@ -912,9 +1020,14 @@ function renderProgress(){
 function showFindError(m){ renderFind(); $("fErr").innerHTML = `<div class="err">${esc(m)}</div>`; }
 async function runSearch(){
   readFind();
-  const q = {sell:(FIND.sell || "").trim(), types:FIND.types || [], types_other:(FIND.types_other || "").trim(), city:(FIND.city || "").trim(),
-    radius:FIND.radius || "10 miles", deciders:(FIND.deciders || []).length ? FIND.deciders : ["The owner"], signals:FIND.signals || [],
-    avoid:FIND.avoid || [], do_not_contact:(FIND.dnc || "").split("\n").map(s => s.trim()).filter(Boolean)};
+  if (!(profile.sell || "").trim()) return showFindError("Set up your business profile first: at least say what you sell.");
+  const otherOn = FIND.other_on || !!(FIND.types_other || "").trim();
+  const q = {sell:profile.sell.trim(), problem:profile.problem || "", ideal_customer:profile.ideal_customer || "", best_customers:profile.best_customers || "",
+    deciders:(profile.deciders || []).length ? profile.deciders : ["The owner"],
+    deciders_other:(profile.deciders_other || "").split(",").map(s => s.trim()).filter(Boolean),
+    types:FIND.types || [], types_other:otherOn ? (FIND.types_other || "").trim() : "", city:(FIND.city || "").trim(),
+    radius:FIND.radius || "10 miles", signals:FIND.signals || [], avoid:FIND.avoid || [],
+    do_not_contact:(FIND.dnc || "").split("\n").map(s => s.trim()).filter(Boolean)};
   try {
     const r = await post("/api/search", {profile:q, how_many:+FIND.how_many || 20});
     JOB = {id:r.job_id, state:"running", progress:0, message:"Starting…", log:[], profile:q};
@@ -947,29 +1060,44 @@ function finishSearch(res){
 }
 async function fillFromSentence(){
   readFind();
-  if (!(FIND.desc || "").trim()) return showFindError("Write a sentence about what you sell and who buys it first.");
+  if (!(FIND.desc || "").trim()) return showFindError("Write a sentence about where to look and what kinds of businesses first.");
   const b = $("fFill"); b.disabled = true; b.textContent = "Reading your description…";
   try {
-    const d = await post("/api/understand", {description:FIND.desc});
-    FIND = {...FIND, sell:d.sell || FIND.sell, types:d.types || [], types_other:d.types_other || "", city:d.city || FIND.city,
-      radius:d.radius || FIND.radius, deciders:d.deciders || FIND.deciders, signals:d.signals || []};
-    store.set(FIND_KEY, FIND); renderFind(); toast("Filled in. Check the details and change anything that’s not right.");
+    const d = await post("/api/understand", {description:`${profile.sell ? `I sell ${profile.sell}. ` : ""}This search: ${FIND.desc}`});
+    FIND = {...FIND, types:d.types || [], types_other:d.types_other || "", other_on:!!d.types_other, city:d.city || FIND.city,
+      radius:d.radius || FIND.radius, signals:d.signals || []};
+    if (!profile.sell && d.sell) { profile.sell = d.sell; store.set(K("profile"), profile); }
+    store.set(FIND_KEY, FIND); renderFind(); toast("Filled in. Check the choices and change anything that’s not right.");
   } catch(e){ showFindError(e.message); }
 }
+// Chips and "Other…" toggles on both the profile and search pages.
 document.addEventListener("click", e => {
-  if (!e.target.closest("#findView")) return;
+  if (!e.target.closest("#findView, #bizView")) return;
+  const other = e.target.closest("[data-other]");
+  if (other){
+    const on = other.getAttribute("aria-pressed") !== "true", box = $(other.dataset.other);
+    other.setAttribute("aria-pressed", on); box.hidden = !on;
+    if (other.dataset.other === "fOtherBox") { FIND.other_on = on; store.set(FIND_KEY, FIND); }
+    else { profile.deciders_other_on = on; store.set(K("profile"), profile); }
+    if (on) box.querySelector("input")?.focus();
+    return;
+  }
   const ch = e.target.closest("[data-chips] .chip");
   if (ch){
     const box = ch.closest("[data-chips]"), name = box.dataset.chips, val = ch.dataset.val;
-    if (box.dataset.multi === "1"){ const s = new Set(FIND[name] || []); s.has(val) ? s.delete(val) : s.add(val); FIND[name] = [...s]; ch.setAttribute("aria-pressed", s.has(val)); }
-    else { FIND[name] = val; box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === ch)); }
-    store.set(FIND_KEY, FIND); $("fStrength").innerHTML = strengthHTML(); return;
+    const obj = box.dataset.src === "profile" ? profile : FIND;
+    if (box.dataset.multi === "1"){ const s = new Set(obj[name] || []); s.has(val) ? s.delete(val) : s.add(val); obj[name] = [...s]; ch.setAttribute("aria-pressed", s.has(val)); }
+    else { obj[name] = val; box.querySelectorAll(".chip[data-val]").forEach(c => c.setAttribute("aria-pressed", c === ch)); }
+    if (box.dataset.src === "profile") store.set(K("profile"), profile); else store.set(FIND_KEY, FIND);
+    if (name === "radius") { readFind(); renderFind(); }
+    refreshStrength(); return;
   }
+  if (!e.target.closest("#findView")) return;
   if (e.target.closest("#fGo")) return runSearch();
   if (e.target.closest("#fFill")) return fillFromSentence();
   if (e.target.closest("#fExample")){ readFind(); FIND = {...FIND, ...EXAMPLE, desc:EXAMPLE_TEXT}; store.set(FIND_KEY, FIND); renderFind(); }
 });
-document.addEventListener("input", e => { if (e.target.closest("#findView")) { readFind(); $("fStrength").innerHTML = strengthHTML(); } });
+document.addEventListener("input", e => { if (e.target.closest("#findView")) readFind(); });
 
 /* ---------- leads that aren't on the board ---------- */
 function renderAside(){
@@ -1000,8 +1128,8 @@ function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("on"
 document.addEventListener("click", e => {
   if ($("side").classList.contains("open") && !e.target.closest("#side") && !e.target.closest("#menuBtn")) { $("side").classList.remove("open"); return; }
   if (e.target.closest("[data-import]")) { $("side").classList.remove("open"); return $("file").click(); }
-  const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); if (go.dataset.go === "profile") return openProfile(); view = go.dataset.go === "find" ? "find" : "board"; viewFilter = null; if (view === "find") renderFind(); renderAll(); return; }
-  const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); view = LEADS.length ? "board" : "find"; viewFilter = null; turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company}`); } $("side").classList.remove("open"); return; }
+  const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); view = ["find","business"].includes(go.dataset.go) ? go.dataset.go : "board"; viewFilter = null; if (view === "find") renderFind(); if (view === "business") renderBusiness(); renderAll(); window.scrollTo(0, 0); return; }
+  const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); view = LEADS.length ? "board" : (profile.sell ? "find" : "business"); viewFilter = null; renderFind(); renderBusiness(); turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company || "your business"}`); } $("side").classList.remove("open"); return; }
   const v = e.target.closest("[data-view]"); if (v){ const vw = views().find(x => x.key === v.dataset.view); viewFilter = viewFilter?.key === vw.key ? null : {ids:new Set(vw.ids), label:vw.label, key:vw.key}; $("side").classList.remove("open"); renderAll(); return; }
   const o = e.target.closest("[data-open]"); if (o) return openLead(o.dataset.open);
   const sg = e.target.closest(".sg"); if (sg) return ask(sg.textContent);
@@ -1019,9 +1147,10 @@ $("dClose").addEventListener("click", closeDrawer);
 $("scrim").addEventListener("click", closeDrawer);
 
 renderFind();
+renderBusiness();
 renderAll();
 // The server says which keys it has. Rewriting uses the server; the Ask box filters by keyword.
-fetch("/api/status").then(r => r.json()).then(s => { SERVER = s; sampleFn = s.claude ? {} : null; renderFind(); renderAll(); }).catch(() => {});
+fetch("/api/status").then(r => r.json()).then(s => { SERVER = s; sampleFn = s.claude ? {} : null; renderFind(); renderBusiness(); renderAll(); }).catch(() => {});
 
 </script>
 </body>

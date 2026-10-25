@@ -265,3 +265,25 @@ def test_added_email_is_verified(offline):
     assert bad["email"] == "" and bad["tier"] == "need_email"
     good = finder.with_manual_email(phone_only, "dana@phoneonlytax.com", PROFILE, verify=lambda e: {"status": "valid", "detail": "ok"})
     assert good["email_status"] == "valid"
+
+
+def test_custom_roles_count_as_decision_makers():
+    lead = {"email": "pat@x.com", "contact_name": "Pat Lee", "contact_title": "Head of Operations", "website": "https://x.com",
+            "found_on": "Google Maps"}
+    plain = finder.score(lead, {"deciders": ["The owner"]})
+    custom = finder.score(lead, {"deciders": ["The owner"], "deciders_other": ["Head of Operations"]})
+    assert custom["score"] == plain["score"] + 10
+
+
+def test_fit_check_uses_the_whole_profile():
+    c = FakeClaude()
+    finder.claude_read_site(c, "m", {"sell": "invoice software", "problem": "month-end takes days",
+                                     "ideal_customer": "small CPA firms"}, "Harbor", "Maria Lopez runs Harbor.")
+    assert "month-end takes days" in c.prompts[0] and "small CPA firms" in c.prompts[0]
+
+
+def test_anywhere_without_google_searches_widely_around_the_city(offline, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(finder, "osm_search", lambda f, c, r, l, **kw: seen.setdefault("r", r) and [])
+    finder.find_leads({**PROFILE, "radius": finder.ANYWHERE}, google_key="", mx=lambda d: True)
+    assert seen["r"] == finder.FREE_MAP_WIDEST
