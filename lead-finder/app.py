@@ -2,6 +2,7 @@
 import csv
 import io
 import os
+import time
 
 import streamlit as st
 
@@ -24,6 +25,23 @@ CLAUDE_MODEL = secret("CLAUDE_MODEL") or "claude-sonnet-5-5"
 
 
 @st.cache_resource
+def result_cache():
+    """Same answers within an hour -> instant results. Good for demos, kinder to the free map servers."""
+    return {}
+
+
+def find_with_cache(profile: dict, how_many: int, progress):
+    key = (repr(sorted(profile.items())), how_many, bool(CLAUDE_KEY), bool(GOOGLE_KEY))
+    hit = result_cache().get(key)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    res = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY, claude_client=claude_client(CLAUDE_KEY),
+                            claude_model=CLAUDE_MODEL, progress=progress)
+    result_cache()[key] = (time.time(), res)
+    return res
+
+
+@st.cache_resource
 def claude_client(key: str):
     if not key:
         return None
@@ -36,8 +54,8 @@ st.write("Answer a few questions. We’ll search Google Maps, visit each busines
          "and tell you who to contact first, with a first email ready to send.")
 
 if not GOOGLE_KEY:
-    st.info("Running in free mode with OpenStreetMap: fewer businesses and no reviews. "
-            "Add a Google Maps key for full results (see the README).")
+    st.info("Free mode: businesses come from OpenStreetMap, a free public map. It has fewer businesses than "
+            "Google Maps and no reviews, so we rank on emails, names, websites and phone numbers instead.")
 
 # ---------------------------------------------------------------- guided questions
 with st.form("questions"):
@@ -53,7 +71,8 @@ with st.form("questions"):
                       default="Within 10 miles")
     deciders = st.pills("4. Who do you usually talk to?", list(finder.DECIDER_WORDS), selection_mode="multi",
                         key="deciders", default=["The owner"])
-    signals = st.pills("5. What tells you a business needs you? (optional)", finder.SIGNALS,
+    signals = st.pills("5. What tells you a business needs you? (optional)",
+                       finder.SIGNALS if GOOGLE_KEY else ["No website"],
                        selection_mode="multi", key="signals")
     avoid = st.pills("6. Who should we skip? (optional)", ["Chains and franchises"], selection_mode="multi",
                      key="avoid", default=["Chains and franchises"])
@@ -76,9 +95,7 @@ if go:
     else:
         bar = st.progress(0.0, text="Starting…")
         try:
-            result = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY,
-                                       claude_client=claude_client(CLAUDE_KEY), claude_model=CLAUDE_MODEL,
-                                       progress=lambda m, f: bar.progress(min(1.0, f), text=m))
+            result = find_with_cache(profile, how_many, lambda m, f: bar.progress(min(1.0, f), text=m))
             st.session_state["result"], st.session_state["profile"] = result, profile
             st.session_state.pop("drafts", None)
         except finder.SearchError as e:
@@ -156,6 +173,7 @@ name that isn’t written on the page.
 Everyone else gets points out of 100: a personal company email 30 (shared inbox 15, free account 10), the owner’s
 name 20 (any name 10), a Google review in the last 3 months 20 (last year 10), a website 10, a phone number 5, and
 15 if they show a sign that they need you. **Contact now** is 70 or more, **Worth a try** is 50–69.
+In free mode there are no reviews, so the score is worked out from the other checks and scaled to 100.
 
 We never send anything. You review and send every email yourself. US law (CAN-SPAM) requires that you say who you
 are, include your business address, and offer a way to opt out: every draft includes these.

@@ -39,7 +39,7 @@ def test_page_loads_with_questions(monkeypatch):
 
 def test_free_mode_notice_without_google_key(monkeypatch):
     at = open_app(monkeypatch, google=False)
-    assert any("free mode" in i.value for i in at.info)
+    assert any("free mode" in i.value.lower() for i in at.info)
 
 def test_missing_answers_show_friendly_errors(monkeypatch):
     at = open_app(monkeypatch)

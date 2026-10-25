@@ -23,6 +23,7 @@ PLACES = [
     place("6", "Phone Only Tax", website="", phone="(206) 555-0199", count=8),
     place("7", "Tacoma Ledger", website="https://tacomaledger.com", lat=47.25, lon=-122.44),
     place("8", "Fake Name Books", website="https://fakename.com"),
+    place("9", "Old Domain CPA", website="http://olddomaincpa.com"),
 ]
 
 SITES = {
@@ -36,6 +37,7 @@ SITES = {
     "https://tacomaledger.com": "<p>sam@tacomaledger.com</p>",
     "https://fakename.com": '<a href="/about">About</a> jo@fakename.com',
     "https://fakename.com/about": "<p>We are a friendly team of bookkeepers.</p>",
+    "http://olddomaincpa.com": "<h1>olddomaincpa.com is for sale</h1> Get a price in 24 hours",
 }
 
 class Resp:

@@ -69,7 +69,14 @@ Go to [console.anthropic.com](https://console.anthropic.com), open **API Keys**,
 
 **Never put keys in GitHub.** They go only in Streamlit’s Secrets box.
 
-Without a Google key the app still works in free mode using OpenStreetMap, but finds fewer businesses and has no reviews.
+### Free mode (no Google key)
+
+Without a Google key the app runs in free mode using OpenStreetMap, a free public map. It works, but expect less:
+in a test of accounting firms within 10 miles of Seattle it found 76 offices, of which 22 were chains and only 14 listed
+a website. Several of those websites had since been put up for sale, which usually means the business closed or moved.
+Lead Finder spots these and skips them, but you’ll end up with a handful of good leads rather than dozens.
+The free map servers can also be slow (30 seconds or more) or busy; the app retries other servers automatically,
+and repeating the same search within an hour is instant. Add a Google key when you want fuller results.
 
 ---
 
@@ -79,11 +86,11 @@ Without a Google key the app still works in free mode using OpenStreetMap, but f
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                      # 25 tests, all offline, using fake Google results, fake websites and a fake Claude
+pytest                      # 31 tests, all offline, using fake Google results, fake websites and a fake Claude
 streamlit run app.py        # set GOOGLE_MAPS_API_KEY and ANTHROPIC_API_KEY first
 ```
 
-The tests cover finding emails in real-looking HTML (including Cloudflare-protected emails), picking the best email, skipping closed businesses, chains and far-away places, dropping emails whose domain can’t receive mail, rejecting names Claude made up, the do-not-contact list, a broken website not stopping the run, plain-English error messages, and clicking through the page itself.
+The tests cover finding emails in real-looking HTML (including Cloudflare-protected emails), picking the best email, skipping closed businesses, chains and far-away places, dropping emails whose domain can’t receive mail, rejecting names Claude made up, skipping businesses whose website is up for sale, retrying busy free map servers, the do-not-contact list, a broken website not stopping the run, plain-English error messages, and clicking through the page itself.
 
 ## Data and privacy
 

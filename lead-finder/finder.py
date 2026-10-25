@@ -35,7 +35,7 @@ TYPES = {
 }
 RADIUS_MILES = {"Within 5 miles": 5, "Within 10 miles": 10, "Within 25 miles": 25}
 DECIDER_WORDS = {
-    "The owner": ["owner", "founder", "co-founder", "president", "ceo", "principal", "proprietor", "partner"],
+    "The owner": ["owner", "founder", "co-founder", "president", "ceo", "principal", "proprietor", "partner", "managing member"],
     "A manager": ["manager", "director", "gm"],
     "An office manager": ["office manager", "administrator", "office admin"],
     "A marketing person": ["marketing"],
@@ -46,7 +46,8 @@ FREE = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com", "iclo
 ROLE = {"info", "contact", "hello", "office", "admin", "sales", "support", "team", "service", "help", "booking", "bookings",
         "enquiries", "inquiries", "reception", "frontdesk", "appointments", "mail", "hr", "jobs", "careers", "billing", "accounts"}
 JUNK_DOMAINS = {"example.com", "sentry.io", "wixpress.com", "sentry-next.wixpress.com", "godaddy.com", "squarespace.com",
-                "domain.com", "email.com", "yourdomain.com", "yoursite.com", "website.com", "mysite.com", "company.com", "sentry.wixpress.com"}
+                "domain.com", "email.com", "yourdomain.com", "yoursite.com", "website.com", "mysite.com", "company.com", "sentry.wixpress.com",
+                "afternic.com", "godaddy.com", "sedo.com", "dan.com", "hugedomains.com"}
 JUNK_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js", ".ico")
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
@@ -138,6 +139,7 @@ def google_search(query: str, key: str, center, radius_mi: float, limit: int) ->
 # ---------------------------------------------------------------- search: OpenStreetMap (free fallback)
 OVERPASS = ["https://overpass-api.de/api/interpreter",
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter"]
 
 
@@ -162,23 +164,34 @@ def parse_osm(e: dict) -> dict:
     }
 
 
-def osm_search(filters: list[str], center, radius_mi: float, limit: int) -> list[dict]:
+def osm_search(filters: list[str], center, radius_mi: float, limit: int, post=None, pause=time.sleep,
+               progress=lambda m, f: None) -> list[dict]:
+    """Ask OpenStreetMap for named businesses near the city. Tries several free servers, twice."""
     if not center:
         raise SearchError("We couldn’t find that city. Try writing it like “Seattle, WA”.")
+    post = post or requests.post
     r_m = int(radius_mi * 1609.34)
-    parts = "".join(f'nwr[{f}]["name"](around:{r_m},{center[0]},{center[1]});' for f in filters)
-    q = f"[out:json][timeout:40];({parts});out center tags {limit * 3};"
+    parts = "".join(f'nwr[{f}]["name"](around:{r_m},{center[0]:.5f},{center[1]:.5f});' for f in filters)
+    q = f"[out:json][timeout:45];({parts});out center tags {max(limit * 4, 100)};"
     last_err = None
-    for url in OVERPASS:
-        try:
-            r = requests.post(url, data={"data": q}, headers={"User-Agent": UA}, timeout=60)
-            if r.status_code == 200:
-                return [parse_osm(e) for e in r.json().get("elements", []) if e.get("tags", {}).get("name")]
-            last_err = r.status_code
-        except Exception as e:
-            last_err = e
-    raise SearchError("The free map service is busy right now. Wait a minute and try again, "
-                      f"or add a Google key for faster, fuller results. ({last_err})")
+    for attempt in range(2):
+        for i, url in enumerate(OVERPASS):
+            progress(f"Searching the free map ({'server ' + str(i + 1)}{', second try' if attempt else ''})…", 0.05)
+            try:
+                r = post(url, data={"data": q}, headers={"User-Agent": UA}, timeout=60)
+                if r.status_code == 200:
+                    return [parse_osm(e) for e in r.json().get("elements", []) if e.get("tags", {}).get("name")]
+                last_err = r.status_code
+            except Exception as e:
+                last_err = type(e).__name__
+        pause(5)
+    raise SearchError("The free map service is busy right now. Wait a minute and press Find leads again. "
+                      f"(Last error: {last_err})")
+
+
+def osm_name_filter(text: str) -> str:
+    words = re.sub(r"[^A-Za-z0-9 ]", " ", text).split()
+    return f'"name"~"{" ".join(words)}",i' if words else ""
 
 
 # ---------------------------------------------------------------- websites: emails and About text
@@ -235,6 +248,16 @@ def domain_of(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
 
 
+PARKED_HOSTS = ("forsale.godaddy.com", "sedo.com", "dan.com", "hugedomains.com", "afternic.com", "parkingcrew.net",
+                "bodis.com", "undeveloped.com", "porkbun.com/parked")
+PARKED_TEXT = re.compile(r"(this domain (name )?(is|may be) for sale|is for sale|domain is parked|buy this domain|"
+                         r"parked free|this domain has expired)", re.I)
+
+
+def is_parked(final_url: str, page: str) -> bool:
+    return any(h in (final_url or "").lower() for h in PARKED_HOSTS) or bool(PARKED_TEXT.search(page[:20000]))
+
+
 def visit_website(url: str, get=None) -> dict:
     """Fetch home + up to 3 Contact/About pages. Returns emails, About text, pages visited."""
     get = get or (lambda u: requests.get(u, headers={"User-Agent": UA}, timeout=10))
@@ -247,6 +270,10 @@ def visit_website(url: str, get=None) -> dict:
             out["error"] = f"Their website returned an error ({home.status_code})."
             return out
         home_html = home.text
+        if is_parked(getattr(home, "url", url), home_html):
+            out["parked"] = True
+            out["error"] = "Their website address is up for sale, so the business may have closed or moved."
+            return out
     except Exception:
         out["error"] = "We couldn’t open their website."
         return out
@@ -324,14 +351,15 @@ Website text:
     return {"owner_name": name, "owner_title": (data.get("owner_title") or "").strip()}
 
 
-OWNER_TITLES = r"((?i:co-owner|owner|co-founder|founder|president|ceo|principal|managing partner|managing director|proprietor))"
+OWNER_TITLES = r"((?i:co-owner|owner|co-founder|founder|president|ceo|principal|managing partner|managing member|managing director|proprietor|partner))"
+_CREDS = r"(?:,? (?:CPA|EA|MBA|JD|DDS|DMD|MD|Esq\.?|PE|CFP|PhD|LCSW|DC|DPT))*"
 _NAME = r"([A-Z][a-z]+(?: [A-Z]\.)? [A-Z][a-z]+(?:-[A-Z][a-z]+)?)"
 _NOT_NAMES = {"About", "Our", "The", "Meet", "Contact", "Welcome", "Call", "Email", "Read", "Learn"}
 
 
 def owner_from_text(text: str) -> dict:
     """No-AI fallback: finds 'Maria Lopez, Owner', 'Owner: Maria Lopez' or 'Meet Sam Park, our founder'."""
-    patterns = [(_NAME + r",? (?:is )?(?:the |our )?" + OWNER_TITLES + r"\b", 1, 2),
+    patterns = [(_NAME + _CREDS + r",? (?:is )?(?:the |our )?" + OWNER_TITLES + r"\b", 1, 2),
                 (OWNER_TITLES + r"\s*[:,\-–]?\s+" + _NAME, 2, 1)]
     for pat, n, t in patterns:
         for m in re.finditer(pat, text):
@@ -397,6 +425,8 @@ def score(lead: dict, profile: dict) -> dict:
         skip = "Google lists it as temporarily closed."
     elif lead.get("is_chain") and "Chains and franchises" in profile.get("avoid", []):
         skip = "Looks like a chain or franchise, which you asked us to skip."
+    elif (lead.get("site") or {}).get("parked"):
+        skip = "Their website address is up for sale, so the business may have closed."
     elif lead.get("outside_area"):
         skip = f"About {lead['distance_mi']:.0f} miles away, outside the area you picked."
 
@@ -461,6 +491,8 @@ def score(lead: dict, profile: dict) -> dict:
         pts += 15
         why.append("Shows a sign they need you: it " + " and ".join(matched) + ".")
 
+    if lead.get("found_on") != "Google Maps":   # free map: no review data, so 20 points can't be earned
+        pts = round(pts * 100 / 80)
     pts = min(pts, 100)
     first = name.split(" ")[0] if name else "them"
     if skip:
@@ -514,8 +546,12 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
         source = "OpenStreetMap"
         filters = [f for t in types for f in TYPES.get(t, {}).get("osm", [])]
         if profile.get("types_other"):
-            filters.append(f'"name"~"{re.escape(profile["types_other"].strip())}",i')
-        found = osm_search(filters, center, radius, limit)
+            f = osm_name_filter(profile["types_other"])
+            if f:
+                filters.append(f)
+        if not filters:
+            raise SearchError("Pick at least one kind of business from the list.")
+        found = osm_search(filters, center, radius, limit, progress=progress)
 
     # combine duplicates, spot chains (same name at several locations), apply area and do-not-contact
     seen, leads = {}, []
@@ -535,6 +571,7 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
         l["outside_area"] = d is not None and d > radius * 1.15
         l["do_not_contact"] = norm(l["business_name"]) in {norm(x) for x in dnc}
         l["flags"] = []
+    leads.sort(key=lambda l: (l["outside_area"], not (l.get("website") or l.get("listed_email")), l.get("distance_mi") or 0))
     leads = leads[: limit]
 
     # visit websites in parallel
@@ -558,7 +595,7 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
                 pick = best_email(rest, l.get("website", ""))
             l["email_checked"] = ok is True
         l["email"] = pick
-        if (l.get("site") or {}).get("error"):
+        if (l.get("site") or {}).get("error") and not l["site"].get("parked"):
             l["flags"].append(l["site"]["error"])
 
     # ask Claude for the owner's name, only where we have an email and About text

@@ -47,6 +47,9 @@ def test_owner_name_found_without_ai():
     assert finder.owner_from_text("Founder: James O’Neil".replace("’", "")) .get("owner_title") in (None, "Founder")
     assert finder.owner_from_text("Meet Sam Park, our founder.")["owner_name"] == "Sam Park"
     assert finder.owner_from_text("We are a friendly team.") == {}
+    # real-world format seen on accounting firm sites (names changed)
+    team = "Our Team: Pat Rivera, CPA Managing Member Lee Wong, CPA, MBA Partner Ana Diaz Office Manager"
+    assert finder.owner_from_text(team) == {"owner_name": "Pat Rivera", "owner_title": "Managing Member"}
 
 def test_google_results_are_parsed():
     l = finder.parse_google(place("9", "X", website="https://x.com", review_days=5))
@@ -148,3 +151,37 @@ def test_csv_rows_have_plain_priority_labels(offline):
     rows = finder.to_rows(run()["leads"])
     assert rows[0]["priority"] == "Contact now"
     assert set(rows[0]) == set(finder.CSV_COLUMNS)
+
+# ---------- free mode (no Google key)
+def test_free_map_tries_the_next_server_when_one_is_busy():
+    from fakes import Resp
+    tried = []
+    def post(url, **kw):
+        tried.append(url)
+        if len(tried) < 3:
+            return Resp(502, "busy")
+        return Resp(200, data={"elements": [{"type": "node", "id": 5, "lat": 47.6, "lon": -122.3, "tags": {"name": "A"}}]})
+    out = finder.osm_search(['office~"^(accountant)$"'], (47.6, -122.3), 10, 20, post=post, pause=lambda s: None)
+    assert [l["business_name"] for l in out] == ["A"] and len(tried) == 3
+
+def test_free_map_gives_plain_message_when_all_servers_are_busy():
+    from fakes import Resp
+    with pytest.raises(finder.SearchError, match="busy right now"):
+        finder.osm_search(['office~"x"'], (47.6, -122.3), 10, 20, post=lambda u, **k: Resp(504, ""), pause=lambda s: None)
+
+def test_free_mode_scores_are_scaled_so_good_leads_can_be_contact_now():
+    lead_ = {"business_name": "Harbor", "email": "maria@harborbooks.com", "website": "https://harborbooks.com",
+             "phone": "1", "contact_name": "Maria Lopez", "contact_title": "Owner", "found_on": "OpenStreetMap"}
+    s = finder.score(lead_, PROFILE)
+    assert s["tier"] == "now" and s["score"] == 81      # 65 of a possible 80
+
+def test_name_filter_for_something_else_is_safe():
+    assert finder.osm_name_filter('dog "groomers"; drop') == '"name"~"dog groomers drop",i'
+
+def test_business_whose_website_is_for_sale_is_skipped(offline):
+    l = lead(run(), "Old Domain CPA")
+    assert l["tier"] == "skip" and "up for sale" in l["next"]
+    assert finder.is_parked("https://forsale.godaddy.com/forsale/x.com", "")
+
+def test_domain_sale_emails_are_never_used():
+    assert finder.emails_in_html("service@afternic.com partnerseller@afternic.com") == []
