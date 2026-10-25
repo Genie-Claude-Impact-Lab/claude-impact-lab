@@ -1,0 +1,4 @@
+streamlit>=1.40
+requests>=2.31
+dnspython>=2.4
+anthropic>=0.40
