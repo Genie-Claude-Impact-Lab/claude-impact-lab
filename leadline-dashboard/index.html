@@ -562,19 +562,23 @@ async function ask(q){
   q = q.trim(); if (!q) return;
   $("askInput").value = ""; agentCtl?.abort();
   if (!sampleFn || !toolsOK){ lastExchange = {you:q, say:basicSearch(q), steps:[], busy:false, mode:"basic"}; renderAgent(); return; }
-  agentCtl = new AbortController();
-  lastExchange = {you:q, say:"", steps:[], busy:true}; $("askBtn").disabled = true; renderAgent();
-  turns.push({role:"user", content:q}); if (turns.length > 10) turns = turns.slice(-10); if (turns[0].role !== "user") turns.shift();
+  // A newer ask() replaces lastExchange and agentCtl; this run only touches its own copies.
+  const ctl = agentCtl = new AbortController(), mine = {role:"user", content:q};
+  const ex = lastExchange = {you:q, say:"", steps:[], busy:true}; $("askBtn").disabled = true; renderAgent();
+  const live = () => lastExchange === ex;
+  turns.push(mine); if (turns.length > 10) turns = turns.slice(-10); if (turns[0].role !== "user") turns.shift();
   try {
-    const {text} = await sampleFn([{role:"user", content:agentInstructions()}, ...turns], {tools:TOOLS, modelTier:"quick", signal:agentCtl.signal,
-      onText:({text}) => { lastExchange.say = text.split(/\n\s*\n/).pop(); renderAgent(); }});
-    const final = text.split(/\n\s*\n/).pop().trim(); turns.push({role:"assistant", content:final}); lastExchange.say = final;
+    const {text} = await sampleFn([{role:"user", content:agentInstructions()}, ...turns], {tools:TOOLS, modelTier:"quick", signal:ctl.signal,
+      onText:({text}) => { ex.say = text.split(/\n\s*\n/).pop(); if (live()) renderAgent(); }});
+    const final = text.split(/\n\s*\n/).pop().trim(); ex.say = final;
+    if (live()) turns.push({role:"assistant", content:final});
   } catch(e){
-    turns.pop();
-    if (e.code === "cancelled") lastExchange.say = "Stopped.";
-    else if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","tools_unavailable"].includes(e.code)) { sampleFn = null; lastExchange.say = basicSearch(q); lastExchange.mode = "basic"; }
-    else lastExchange.say = e.code === "rate_limited" ? "I’m getting too many requests right now. Try again in a minute." : "That didn’t finish. Try asking again.";
-  } finally { lastExchange.busy = false; $("askBtn").disabled = false; renderAgent(); }
+    turns = turns.filter(t => t !== mine);
+    if (!live()) return;
+    if (e.code === "cancelled") ex.say = "Stopped.";
+    else if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","tools_unavailable"].includes(e.code)) { sampleFn = null; ex.say = basicSearch(q); ex.mode = "basic"; }
+    else ex.say = e.code === "rate_limited" ? "I’m getting too many requests right now. Try again in a minute." : "That didn’t finish. Try asking again.";
+  } finally { if (live()) { ex.busy = false; $("askBtn").disabled = false; renderAgent(); } }
 }
 
 /* ---------- drawer: lead + email ---------- */
@@ -698,7 +702,7 @@ function importCSV(file){
     if (missing.length) return toast(`Missing column: ${missing.join(", ")}`);
     const rows = res.data.filter(r => r.business_name).map((r,i) => ({...r, lead_id:r.lead_id || "R" + (i+1)}));
     if (!rows.length) return toast("No rows with a business name found");
-    imported = {name:file.name, rows}; LEADS = rows; stages = {}; viewFilter = null; store.set(K("stages"), stages);
+    imported = {name:file.name, rows}; LEADS = rows; stages = {}; drafts = {}; viewFilter = null; store.set(K("stages"), stages); store.set(K("drafts"), drafts);
     toast(store.set(K("import"), imported) ? `Imported ${rows.length} leads for ${profile.company}` : "Imported, but too big to keep after reload");
     renderAll();
   }, error: () => toast("That file couldn’t be read as a CSV")});
