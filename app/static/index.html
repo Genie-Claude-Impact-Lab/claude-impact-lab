@@ -1031,6 +1031,7 @@ function renderSettings(){
       <p class="lede">Paste a key and press Save. It works right away. Keys are saved only on the computer running Leadline, in its <b>.env</b> file, and are never shown again.</p>
       <div id="kErr"></div>
       ${key("google", SERVER.google, "Google Maps", "Finds businesses with reviews and open or closed status.", "Without it we use a free public map, which finds fewer businesses and is sometimes busy. Get a key in Google Cloud Console with Places API (New) turned on.", "Paste your Google Maps key")}
+      ${key("tomtom", SERVER.tomtom, "TomTom", "Finds businesses with websites and phone numbers. Free, no credit card, 2,500 searches a month. Used when there’s no Google key.", "Get a free key at developer.tomtom.com.", "Paste your TomTom key")}
       ${key("claude", SERVER.claude, "Claude", "Reads websites for owners’ names and fit, reads your website and files, and writes emails.", "Without it you fill in the questions yourself and emails use a template. Get a key at platform.claude.com under API keys.", "Paste your Claude key (starts with sk-ant-)")}
     <section class="panel"><h3 class="h3">Start over</h3><p class="lede">Remove every business, search, lead and draft saved in this browser. Sample businesses come back as they were.</p>
       <div class="go"><button class="btn ghost" type="button" id="sClearAll" style="color:var(--warn)">Clear everything on this browser</button></div></section>
@@ -1058,7 +1059,7 @@ async function saveKey(id, value){
     SERVER = await post("/api/keys", {[id]: value});
     sampleFn = SERVER.claude ? {} : null;
     renderSettings(); renderFind(); renderBusiness();
-    toast(value ? `${id === "google" ? "Google Maps" : "Claude"} key saved. It’s working now.` : "Key removed.");
+    toast(value ? `${({google:"Google Maps", tomtom:"TomTom", claude:"Claude"})[id]} key saved. It’s working now.` : "Key removed.");
   } catch(e){ $("kErr").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 document.addEventListener("submit", e => {
@@ -1205,7 +1206,7 @@ function renderFind(){
       </details>
       <div class="go"><button class="btn dark big" type="button" id="fGo"${running ? " disabled" : ""}>${running ? "Finding leads…" : "Find leads"}</button>
         <button class="btn ghost" type="button" id="fExample">Try an example</button></div>
-      <p class="modeline">${SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses and is sometimes busy. Add a Google key for fuller, reliable results."}
+      <p class="modeline">${SERVER.source_note || (SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses and is sometimes busy. Add a TomTom or Google key for fuller, reliable results.")}
         ${SERVER.claude ? "" : " Add a Claude key for owner names, fit and written emails."} It usually takes 30 to 60 seconds.</p>
       <div id="fErr"></div><div id="fProg"></div>
     </section></div>`;

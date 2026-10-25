@@ -34,7 +34,13 @@ You need **Python 3.10 or newer**. Check with `python3 --version`. If it's older
 
    Open `.env` in any text editor and paste each key after its `=` sign. `.env` stays on your computer and is never uploaded to GitHub.
 
-4. Start it:
+4. Check your keys (takes a few seconds, and tells you in plain words what to fix):
+
+   ```bash
+   .venv/bin/python check_keys.py
+   ```
+
+5. Start it:
 
    ```bash
    .venv/bin/python run.py
@@ -46,8 +52,13 @@ You need **Python 3.10 or newer**. Check with `python3 --version`. If it's older
 
 | Key | What it does | Without it |
 |---|---|---|
+| `TOMTOM_API_KEY` | Finds businesses on TomTom's map: name, address, website, phone, and whether it's a chain. Free, no credit card, 2,500 searches a month. TomTom has no review data, so ranking leans on emails, owner names, websites and phone numbers | Free mode uses OpenStreetMap: fewer businesses, and the free servers are sometimes busy |
 | `GOOGLE_MAPS_API_KEY` | Finds businesses on Google Maps, with reviews and open or closed status | Free mode uses OpenStreetMap: fewer businesses, no reviews, and the free servers are sometimes busy |
 | `ANTHROPIC_API_KEY` | Claude turns your one-sentence description into a search, reads websites for owners' names and fit, and writes emails | Fill in the questions yourself; emails use a plain template |
+
+**TomTom key:** sign up at [developer.tomtom.com](https://developer.tomtom.com) (no credit card), open the dashboard, create an API key, and paste it into `.env` after `TOMTOM_API_KEY=`. When the free 2,500 monthly searches are used up TomTom blocks further requests instead of charging you. One Leadline search uses 1 to 5 of them, depending on how many kinds of business you pick.
+
+**Which map is used:** Google if a Google key is set, otherwise TomTom if a TomTom key is set, otherwise OpenStreetMap. To force one, set `MAP_SOURCE=tomtom` (or `google`, or `osm`) in `.env`.
 
 **Google key:** in [Google Cloud Console](https://console.cloud.google.com), create a project, enable **Places API (New)**, then **Credentials → Create credentials → API key**. Restrict the key to Places API (New) and set a budget alert.
 
@@ -84,7 +95,7 @@ Drafts use only facts we verified about the business, never invent details, stay
 | `run.py` | Starts the server and opens the browser |
 
 ```bash
-.venv/bin/python -m pytest -q    # 50 tests, all offline
+.venv/bin/python -m pytest -q    # 82 tests, all offline
 ```
 
 Settings in `.env`: `CLAUDE_MODEL` (default `claude-sonnet-5-5`) and `SEARCHES_PER_HOUR` (per visitor, default 20).

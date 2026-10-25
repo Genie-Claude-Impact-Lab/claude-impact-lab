@@ -146,3 +146,57 @@ def test_saving_and_removing_a_key(client, monkeypatch, tmp_path):
     assert "GOOGLE_MAPS_API_KEY=AIza" in env and "# keep me" in env
     assert client.post("/api/keys", json={"google": ""}).json()["google"] is False
     assert "GOOGLE_MAPS_API_KEY=\n" in (tmp_path / ".env").read_text()
+
+
+# ---------------------------------------------------------------- TomTom
+@pytest.fixture
+def tomtom_client(monkeypatch):
+    from fakes import fake_get_with_tomtom
+    monkeypatch.setattr(finder.requests, "get", fake_get_with_tomtom())
+    monkeypatch.setattr(finder.requests, "post", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no Google/OSM")))
+    monkeypatch.setattr(finder.time, "sleep", lambda s: None)
+    monkeypatch.setattr(finder, "verify_email", lambda e, **kw: {"status": "domain_ok", "detail": "ok"})
+    monkeypatch.setattr(server, "GOOGLE_KEY", "")
+    monkeypatch.setattr(server, "TOMTOM_KEY", "tt-key")
+    monkeypatch.setattr(server, "MAP_SOURCE", "")
+    monkeypatch.setattr(server, "CLAUDE_KEY", "")
+    server._recent.clear()
+    return TestClient(server.app)
+
+
+def test_status_says_tomtom_and_hides_review_based_options(tomtom_client):
+    s = tomtom_client.get("/api/status").json()
+    assert s["source"] == "tomtom" and s["source_label"] == "TomTom" and s["google"] is False
+    assert "no review data" in s["source_note"]
+    assert s["options"]["signals"] == ["No website"]
+
+
+def test_status_follows_the_keys_and_the_override(tomtom_client, monkeypatch):
+    monkeypatch.setattr(server, "GOOGLE_KEY", "g")
+    assert tomtom_client.get("/api/status").json()["source"] == "google"
+    monkeypatch.setattr(server, "MAP_SOURCE", "tomtom")
+    assert tomtom_client.get("/api/status").json()["source"] == "tomtom"
+    monkeypatch.setattr(server, "MAP_SOURCE", "osm")
+    assert "Free mode" in tomtom_client.get("/api/status").json()["source_note"]
+    monkeypatch.setattr(server, "GOOGLE_KEY", "")
+    monkeypatch.setattr(server, "TOMTOM_KEY", "")
+    monkeypatch.setattr(server, "MAP_SOURCE", "")
+    assert tomtom_client.get("/api/status").json()["source"] == "osm"
+
+
+def test_a_search_with_tomtom_returns_dashboard_cards(tomtom_client):
+    d = wait(tomtom_client, tomtom_client.post("/api/search", json={"profile": PROFILE}).json()["job_id"])
+    assert d["state"] == "done", d.get("error")
+    assert d["result"]["source"] == "TomTom"
+    cards = {c["business_name"]: c for c in d["result"]["leads"]}
+    harbor = cards["Harbor Bookkeeping"]
+    assert harbor["found_on"] == "TomTom" and harbor["tier"] == "now" and harbor["email"] == "maria@harborbooks.com"
+    assert harbor["google_rating"] is None and harbor["review_count"] is None
+    assert cards["TaxChain Seattle"]["tier"] == "skip" and cards["Phone Only Tax"]["tier"] == "need_email"
+
+
+def test_a_tomtom_problem_reaches_the_owner_in_plain_words(tomtom_client, monkeypatch):
+    from fakes import fake_get_with_tomtom
+    monkeypatch.setattr(finder.requests, "get", fake_get_with_tomtom(status=403, message="Forbidden"))
+    d = wait(tomtom_client, tomtom_client.post("/api/search", json={"profile": PROFILE}).json()["job_id"])
+    assert d["state"] == "error" and "TomTom refused" in d["error"]

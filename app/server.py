@@ -30,6 +30,14 @@ HERE = Path(__file__).parent
 load_dotenv(HERE / ".env")
 
 GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+TOMTOM_KEY = os.environ.get("TOMTOM_API_KEY", "").strip()
+MAP_SOURCE = os.environ.get("MAP_SOURCE", "").strip().lower()      # optional: google, tomtom or osm
+SOURCE_NOTES = {
+    "google": "Searching Google Maps.",
+    "tomtom": "Searching TomTom maps. It has no review data, so ranking uses emails, names, websites and phone numbers.",
+    "osm": "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses. "
+           "Add a TomTom or Google key for fuller results.",
+}
 CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "").strip() or "claude-sonnet-5-5"
 SEARCHES_PER_HOUR = int(os.environ.get("SEARCHES_PER_HOUR", "20"))
@@ -38,6 +46,11 @@ app = FastAPI(title="Lead Finder")
 _claude = None
 JOBS: dict = {}          # job id -> progress, log, result and the raw leads (for re-scoring)
 _recent: dict = {}       # visitor -> times of recent searches
+
+
+def source() -> str:
+    """Which map this server searches, worked out from the keys it has right now."""
+    return finder.pick_source(GOOGLE_KEY, TOMTOM_KEY, MAP_SOURCE)
 
 
 def claude():
@@ -73,14 +86,16 @@ def _visitor(request: Request) -> str:
 
 @app.get("/api/status")
 def status():
-    return {"google": bool(GOOGLE_KEY), "claude": bool(CLAUDE_KEY),
+    src = source()
+    return {"google": src == "google", "tomtom": bool(TOMTOM_KEY), "source": src, "source_label": finder.SOURCE_LABEL[src],
+            "source_note": SOURCE_NOTES[src], "claude": bool(CLAUDE_KEY),
             "options": {"types": list(finder.TYPES), "radius": list(finder.RADIUS_MILES),
                         "deciders": list(finder.DECIDER_WORDS),
-                        "signals": finder.SIGNALS if GOOGLE_KEY else ["No website"]}}
+                        "signals": finder.SIGNALS if src == "google" else ["No website"]}}
 
 
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
-KEY_NAMES = {"google": "GOOGLE_MAPS_API_KEY", "claude": "ANTHROPIC_API_KEY"}
+KEY_NAMES = {"google": "GOOGLE_MAPS_API_KEY", "tomtom": "TOMTOM_API_KEY", "claude": "ANTHROPIC_API_KEY"}
 
 
 def set_env(name: str, value: str):
@@ -102,7 +117,7 @@ def set_env(name: str, value: str):
 @app.post("/api/keys")
 def save_keys(body: dict, request: Request):
     """Save or remove keys from Settings. Only from the computer running Leadline; keys are never sent back."""
-    global GOOGLE_KEY, CLAUDE_KEY, _claude
+    global GOOGLE_KEY, TOMTOM_KEY, CLAUDE_KEY, _claude
     host = request.client.host if request.client else ""
     if host not in LOCAL_HOSTS or request.headers.get("x-forwarded-for"):
         raise HTTPException(403, "Keys can only be changed on the computer that runs Leadline.")
@@ -117,6 +132,7 @@ def save_keys(body: dict, request: Request):
         set_env(env, value)
         os.environ[env] = value
     GOOGLE_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+    TOMTOM_KEY = os.environ.get("TOMTOM_API_KEY", "").strip()
     CLAUDE_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     _claude = None
     return status()
@@ -244,8 +260,9 @@ def _run(job_id: str, profile: dict, how_many: int):
         job["message"], job["progress"] = msg, round(min(1.0, frac), 3)
 
     try:
-        res = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY, claude_client=claude(),
-                                claude_model=CLAUDE_MODEL, progress=progress, log=lambda t: job["log"].append(t))
+        res = finder.find_leads(profile, limit=how_many, google_key=GOOGLE_KEY, tomtom_key=TOMTOM_KEY,
+                                map_source=MAP_SOURCE, claude_client=claude(), claude_model=CLAUDE_MODEL,
+                                progress=progress, log=lambda t: job["log"].append(t))
         job["raw"] = {l["id"]: l for l in res["leads"]}
         job["result"] = {"source": res["source"], "leads": [to_card(l) for l in res["leads"]],
                          "seconds": round(time.time() - job["started"])}

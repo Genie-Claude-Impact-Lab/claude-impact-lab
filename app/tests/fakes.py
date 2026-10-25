@@ -86,3 +86,37 @@ class FakeClaude:
         else:
             out = '{"owner_name": "", "owner_title": "", "what_they_do": "Sells office furniture", "fit": 20, "hook": ""}'
         return type("M", (), {"content": [type("B", (), {"type": "text", "text": out})()]})()
+
+
+# ---------------------------------------------------------------- TomTom (shaped like TomTom's documented JSON)
+def tomtom_result(rid, name, url="", phone="+1 206-555-0100", brands=None, lat=47.61, lon=-122.33, kind="accountant"):
+    return {"type": "POI", "id": rid, "score": 2.5, "dist": 900.0, "info": "search:ta:x",
+            "poi": {"name": name, "phone": phone, "url": url, "brands": [{"name": b} for b in (brands or [])],
+                    "categorySet": [{"id": 9352}],
+                    "classifications": [{"code": "COMPANY", "names": [{"nameLocale": "en-US", "name": kind}]}]},
+            "address": {"freeformAddress": "1 Main St, Seattle, WA 98101", "municipality": "Seattle"},
+            "position": {"lat": lat, "lon": lon}}
+
+
+TOMTOM_RESULTS = [
+    tomtom_result("t1", "Harbor Bookkeeping", url="harborbooks.com"),
+    tomtom_result("t2", "Elliott CPA Group", url="elliottcpa.com"),
+    tomtom_result("t3", "Phone Only Tax", url="", phone="+1 206-555-0199"),
+    tomtom_result("t4", "TaxChain Seattle", url="taxchain.com", brands=["TaxChain"]),
+    tomtom_result("t5", "Old Domain CPA", url="http://olddomaincpa.com"),
+    {"type": "POI", "id": "t6", "poi": {"name": ""}, "address": {}, "position": {}},     # no name: must be ignored
+]
+
+
+def fake_get_with_tomtom(results=None, status=200, message="", calls=None):
+    """requests.get stand-in: TomTom URLs get TomTom answers, everything else gets the usual fake sites."""
+    def get(url, **kw):
+        if "api.tomtom.com" in url:
+            if calls is not None:
+                calls.append({"url": url, "params": kw.get("params")})
+            if status != 200:
+                return Resp(status, data={"errorText": message, "httpStatusCode": str(status),
+                                          "detailedError": {"code": "Err", "message": message}})
+            return Resp(200, data={"summary": {"numResults": 5}, "results": TOMTOM_RESULTS if results is None else results})
+        return fake_get(url, **kw)
+    return get
