@@ -301,7 +301,7 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
     <button class="nav" type="button" data-go="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>New search</span></button>
     <button class="nav" type="button" aria-current="page" data-go="board"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Pipeline</span></button>
     <button class="nav" type="button" data-go="business"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Your business profile</span></button>
-    <button class="nav" type="button" data-import><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Import a lead list (CSV)</span></button>
+    <button class="nav" type="button" data-export><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Export leads (CSV)</span></button>
     <button class="nav" type="button" data-go="settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
     <div class="sec">Who you sell to</div>
     <div id="views"></div>
@@ -1038,6 +1038,25 @@ document.addEventListener("click", e => {
   }
 });
 
+/* ---------- CSV export, in the columns of the business owner's sample sheet ---------- */
+const EXPORT_COLUMNS = ["org_name","leader_name","","role","email","row_id","linkedin_url","address","org_type","status","url_info"];
+const csvCell = v => { const t = String(v ?? ""); return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+function exportCSV(){
+  const rows = LEADS.filter(l => l.tier !== "skip").sort((a, b) => (TIER_RANK[a.tier] ?? 9) - (TIER_RANK[b.tier] ?? 9) || score(b) - score(a));
+  if (!rows.length) return toast("No leads to export yet. Run a search first.");
+  const lines = [EXPORT_COLUMNS.join(",")].concat(rows.map((l, i) => [
+    l.business_name, l.contact_name, i, l.contact_title, l.email, i + 1, l.linkedin_url || "", l.address,
+    l.category ? "SMB-" + String(l.category).normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^A-Za-z0-9]+/).filter(Boolean)
+      .map(w => w[0].toUpperCase() + w.slice(1)).join("") : "Small and Medium Businesses",
+    STAGE_NAME[stageOf(l.lead_id)] || "New", webUrl(l.website) || l.website || ""].map(csvCell).join(",")));
+  const name = `leads-${(profile.company || "my-business").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\r\n") + "\r\n"], {type:"text/csv"}));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast(`Exported ${rows.length} lead${rows.length === 1 ? "" : "s"} to ${name}.`);
+}
+const TIER_RANK = {now:0, try:1, need_email:2, later:3};
+
 /* ---------- CSV import ---------- */
 function importCSV(file){
   if (!window.Papa) return toast("The CSV reader didn’t load. Check your connection.");
@@ -1256,6 +1275,7 @@ function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("on"
 document.addEventListener("click", e => {
   if ($("side").classList.contains("open") && !e.target.closest("#side") && !e.target.closest("#menuBtn")) { $("side").classList.remove("open"); return; }
   if (e.target.closest("[data-import]")) { $("side").classList.remove("open"); return $("file").click(); }
+  if (e.target.closest("[data-export]")) { $("side").classList.remove("open"); return exportCSV(); }
   const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); view = ["find","business","settings"].includes(go.dataset.go) ? go.dataset.go : "board"; viewFilter = null; if (view === "find") renderFind(); if (view === "business") renderBusiness(); renderAll(); window.scrollTo(0, 0); return; }
   const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); FIND = Object.assign({}, FIND_DEFAULT, store.get(FKEY(), {})); JOB = null; view = LEADS.length ? "board" : (profile.sell ? "find" : "business"); viewFilter = null; renderFind(); renderBusiness(); turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company || "your business"}`); } $("side").classList.remove("open"); return; }
   const v = e.target.closest("[data-view]"); if (v){ const vw = views().find(x => x.key === v.dataset.view); viewFilter = viewFilter?.key === vw.key ? null : {ids:new Set(vw.ids), label:vw.label, key:vw.key}; $("side").classList.remove("open"); renderAll(); return; }
