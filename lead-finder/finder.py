@@ -166,27 +166,40 @@ def parse_osm(e: dict) -> dict:
 
 def osm_search(filters: list[str], center, radius_mi: float, limit: int, post=None, pause=time.sleep,
                progress=lambda m, f: None) -> list[dict]:
-    """Ask OpenStreetMap for named businesses near the city. Tries several free servers, twice."""
+    """Ask every free map server at the same time and use the first good answer. Retries once."""
     if not center:
         raise SearchError("We couldn’t find that city. Try writing it like “Seattle, WA”.")
     post = post or requests.post
     r_m = int(radius_mi * 1609.34)
     parts = "".join(f'nwr[{f}]["name"](around:{r_m},{center[0]:.5f},{center[1]:.5f});' for f in filters)
-    q = f"[out:json][timeout:45];({parts});out center tags {max(limit * 4, 100)};"
-    last_err = None
+    q = f"[out:json][timeout:40];({parts});out center tags {max(limit * 4, 100)};"
+
+    def ask(url):
+        r = post(url, data={"data": q}, headers={"User-Agent": UA}, timeout=45)
+        if r.status_code != 200:
+            raise RuntimeError(f"{r.status_code}")
+        return [parse_osm(e) for e in r.json().get("elements", []) if e.get("tags", {}).get("name")]
+
+    errors = []
     for attempt in range(2):
-        for i, url in enumerate(OVERPASS):
-            progress(f"Searching the free map ({'server ' + str(i + 1)}{', second try' if attempt else ''})…", 0.05)
-            try:
-                r = post(url, data={"data": q}, headers={"User-Agent": UA}, timeout=60)
-                if r.status_code == 200:
-                    return [parse_osm(e) for e in r.json().get("elements", []) if e.get("tags", {}).get("name")]
-                last_err = r.status_code
-            except Exception as e:
-                last_err = type(e).__name__
-        pause(5)
+        progress("Searching the free map. This usually takes 10 to 40 seconds…" if not attempt
+                 else "The map servers were busy. Trying once more…", 0.05)
+        ex = cf.ThreadPoolExecutor(max_workers=len(OVERPASS))
+        futs = [ex.submit(ask, u) for u in OVERPASS]
+        try:
+            for f in cf.as_completed(futs, timeout=50):
+                try:
+                    return f.result()
+                except Exception as e:
+                    errors.append(str(e) or type(e).__name__)
+        except cf.TimeoutError:
+            errors.append("timeout")
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
+        if not attempt:
+            pause(3)
     raise SearchError("The free map service is busy right now. Wait a minute and press Find leads again. "
-                      f"(Last error: {last_err})")
+                      f"(Errors: {', '.join(errors[-4:])})")
 
 
 def osm_name_filter(text: str) -> str:
@@ -260,7 +273,7 @@ def is_parked(final_url: str, page: str) -> bool:
 
 def visit_website(url: str, get=None) -> dict:
     """Fetch home + up to 3 Contact/About pages. Returns emails, About text, pages visited."""
-    get = get or (lambda u: requests.get(u, headers={"User-Agent": UA}, timeout=10))
+    get = get or (lambda u: requests.get(u, headers={"User-Agent": UA}, timeout=(4, 6)))
     if not re.match(r"https?://", url):
         url = "https://" + url
     out = {"emails": [], "about_text": "", "pages": [], "error": ""}
@@ -576,9 +589,10 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
 
     # visit websites in parallel
     todo = [l for l in leads if l.get("website") and not l["do_not_contact"]]
-    for i, (l, res) in enumerate(_parallel(lambda l: visit(l["website"]), todo, 8)):
+    for i, (l, res) in enumerate(_parallel(lambda l: visit(l["website"]), todo, 16, deadline=45)):
         progress(f"Checking websites for emails ({i + 1} of {len(todo)})…", 0.15 + 0.5 * (i + 1) / max(1, len(todo)))
-        l["site"] = res if isinstance(res, dict) else {"emails": [], "about_text": "", "pages": [], "error": "We couldn’t open their website."}
+        l["site"] = res if isinstance(res, dict) else {"emails": [], "about_text": "", "pages": [],
+                                                       "error": str(res) if isinstance(res, TimeoutError) else "We couldn’t open their website."}
 
     # pick an email, check it can receive mail
     for l in leads:
@@ -621,14 +635,24 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
     return {"source": source, "leads": ranked, "center_found": bool(center)}
 
 
-def _parallel(fn, items, workers):
-    with cf.ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(fn, it): it for it in items}
-        for f in cf.as_completed(futs):
+def _parallel(fn, items, workers, deadline=None):
+    """Run fn on items at the same time. Anything slower than `deadline` seconds is reported as an error."""
+    ex = cf.ThreadPoolExecutor(max_workers=workers)
+    futs = {ex.submit(fn, it): it for it in items}
+    done = set()
+    try:
+        for f in cf.as_completed(futs, timeout=deadline):
+            done.add(f)
             try:
                 yield futs[f], f.result()
             except Exception as e:  # one bad website never stops the run
                 yield futs[f], e
+    except cf.TimeoutError:
+        for f, it in futs.items():
+            if f not in done:
+                yield it, TimeoutError("Their website took too long to load.")
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
 
 
 CSV_COLUMNS = ["priority", "business_name", "next", "contact_name", "contact_title", "email", "phone", "website",

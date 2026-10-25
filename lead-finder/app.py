@@ -50,14 +50,24 @@ def claude_client(key: str):
 
 
 st.title("Find businesses to sell to")
-st.write("Answer a few questions. We’ll search Google Maps, visit each business’s website to find an email, "
-         "and tell you who to contact first, with a first email ready to send.")
+st.write(f"Answer a few questions. We’ll search {'Google Maps' if GOOGLE_KEY else 'a free public map'}, visit each "
+         "business’s website to find an email, and tell you who to contact first, with a first email ready to send.")
 
 if not GOOGLE_KEY:
     st.info("Free mode: businesses come from OpenStreetMap, a free public map. It has fewer businesses than "
             "Google Maps and no reviews, so we rank on emails, names, websites and phone numbers instead.")
 
 # ---------------------------------------------------------------- guided questions
+DEFAULTS = {"radius": "Within 10 miles", "deciders": ["The owner"], "avoid": ["Chains and franchises"], "how_many": 20}
+EXAMPLE = {"sell": "software that speeds up invoice and bookkeeping reviews", "types": ["Accounting and bookkeeping firms"],
+           "types_other": "", "city": "Seattle, WA", "radius": "Within 10 miles", "deciders": ["The owner"],
+           "signals": [], "avoid": ["Chains and franchises"], "how_many": 20}
+for k, v in DEFAULTS.items():
+    st.session_state.setdefault(k, v)
+if st.button("Fill in an example"):
+    st.session_state.update(EXAMPLE)
+    st.rerun()
+
 with st.form("questions"):
     sell = st.text_input("1. What do you sell?", key="sell",
                          placeholder="Example: software that speeds up invoice reviews for small firms")
@@ -65,19 +75,17 @@ with st.form("questions"):
                      selection_mode="multi", key="types")
     types_other = st.text_input("Something else? Type it here.", key="types_other",
                                 placeholder="Example: dog groomers")
-    c1, c2 = st.columns([3, 2])
-    city = c1.text_input("3. Which city should we search around?", key="city", placeholder="Example: Seattle, WA")
-    radius = c2.pills("How far?", list(finder.RADIUS_MILES), selection_mode="single", key="radius",
-                      default="Within 10 miles")
+    city = st.text_input("3. Which city should we search around?", key="city", placeholder="Example: Seattle, WA")
+    radius = st.pills("How far from there?", list(finder.RADIUS_MILES), selection_mode="single", key="radius")
     deciders = st.pills("4. Who do you usually talk to?", list(finder.DECIDER_WORDS), selection_mode="multi",
-                        key="deciders", default=["The owner"])
+                        key="deciders")
     signals = st.pills("5. What tells you a business needs you? (optional)",
                        finder.SIGNALS if GOOGLE_KEY else ["No website"],
                        selection_mode="multi", key="signals")
     avoid = st.pills("6. Who should we skip? (optional)", ["Chains and franchises"], selection_mode="multi",
-                     key="avoid", default=["Chains and franchises"])
-    how_many = st.select_slider("7. How many businesses should we look at?", [20, 40, 60], value=40, key="how_many",
-                                help="More takes longer: about a minute for 40.")
+                     key="avoid")
+    how_many = st.select_slider("7. How many businesses should we look at?", [20, 40, 60], key="how_many",
+                                help="More takes a little longer.")
     with st.expander("Businesses you never want to contact (optional)"):
         dnc = st.text_area("One business name per line. We’ll always leave these out.", key="dnc")
     go = st.form_submit_button("Find leads", type="primary", use_container_width=True)
@@ -93,9 +101,11 @@ if go:
     elif not profile["city"]:
         st.error("Tell us which city to search around (question 3).")
     else:
-        bar = st.progress(0.0, text="Starting…")
+        bar = st.progress(0.0, text="Starting. This usually takes 30 to 60 seconds…")
+        t0 = time.time()
         try:
             result = find_with_cache(profile, how_many, lambda m, f: bar.progress(min(1.0, f), text=m))
+            result = {**result, "seconds": round(time.time() - t0)}
             st.session_state["result"], st.session_state["profile"] = result, profile
             st.session_state.pop("drafts", None)
         except finder.SearchError as e:
@@ -111,7 +121,7 @@ if result:
     cols = st.columns(5)
     for col, t in zip(cols, finder.TIER_LABEL):
         col.metric(finder.TIER_LABEL[t], counts[t])
-    st.caption(f"Found on {result['source']}. Emails come from each business’s own website. "
+    st.caption(f"Found on {result['source']} in {result.get('seconds', 0)} seconds. Emails come from each business’s own website. "
                + ("Owners’ names were read from their About pages by Claude." if CLAUDE_KEY else ""))
 
     buf = io.StringIO()
