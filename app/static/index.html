@@ -320,7 +320,6 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
         <input id="askInput" autocomplete="off" placeholder="Ask Leadline to find, sort or email leads">
         <button class="btn dark" type="submit" id="askBtn">Ask</button>
       </form>
-      <button class="circle" type="button" id="topImport" data-import aria-label="Import a lead list (CSV)" title="Import a lead list (CSV)"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
     </div>
     <div class="suggest" id="suggest"></div>
     <section class="agent" id="agent" hidden aria-live="polite"></section>
@@ -349,7 +348,6 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
     </div>
   </main>
 </div>
-<input type="file" id="file" accept=".csv,text/csv" class="sr" tabindex="-1" aria-hidden="true">
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" aria-hidden="true">
@@ -588,7 +586,7 @@ function renderSuggest(){
 }
 function showView(){
   $("findView").hidden = view !== "find"; $("bizView").hidden = view !== "business"; $("setView").hidden = view !== "settings"; if (view === "settings") renderSettings(); $("boardView").hidden = view !== "board";
-  $("suggest").hidden = $("askForm").hidden = $("topImport").hidden = view !== "board";
+  $("suggest").hidden = $("askForm").hidden = view !== "board";
   $("sampleBanner").innerHTML = !isSample(persona) || view === "settings" ? "" : `<div class="banner"><span>You’re looking at a sample business, <b>${esc(profile.company)}</b>. Nothing here is real.</span>
     <button class="btn dark" type="button" data-persona="${esc(OWN[0])}">Switch to your business</button></div>`;
   document.querySelectorAll(".nav[data-go]").forEach(b => b.dataset.go === view ? b.setAttribute("aria-current","page") : b.removeAttribute("aria-current"));
@@ -847,11 +845,12 @@ function renderBusiness(){
       <p class="lede">Set this up once. We use it to judge which businesses are a good fit and to write emails that sound like you. Each search can then look in different places for different kinds of businesses.</p>
       <div id="bStrength" style="margin-top:16px">${strengthHTML()}</div></section>
     <section class="panel"><h3 class="h3">Add anything that tells us about your business</h3>
-      <p class="lede">Brochures, pitch decks saved as PDF, price sheets, case studies, and emails you’ve sent. The more we know, the better your matches and the more your emails sound like you.</p>
+      <p class="lede">Brochures, pitch decks saved as PDF, price sheets, case studies, emails you’ve sent, and lead lists you already have. The more we know, the better your matches and the more your emails sound like you.</p>
       <label class="drop" id="bDrop"><input id="bFile" type="file" multiple accept=".pdf,.docx,.txt,.md,.eml,.html,.htm,.csv,text/plain" class="sr">
         <svg class="i" viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <b>Drop files here or choose files</b><span>PDF, Word (.docx), saved emails (.eml), text or web pages. Up to 10 MB each.</span></label>
-      ${(profile.materials || []).length ? `<div class="mats">${profile.materials.map(m => `<div class="mat"><div><b>${esc(m.name)}</b><span>About ${words(m.text).toLocaleString()} words</span></div>
+        <b>Drop files here or choose files</b><span>PDF, Word (.docx), saved emails (.eml), text, web pages, or a lead list (.csv) to add to your pipeline. Up to 10 MB each.</span></label>
+      ${(profile.materials || []).length ? `<div class="mats">${profile.materials.map(m => m.kind === "leads" ? `<div class="mat"><div><b>${esc(m.name)}</b><span>Lead list: ${m.count} lead${m.count === 1 ? "" : "s"} added to your pipeline</span></div>
+        <button class="btn" type="button" data-go="board">See pipeline</button><button class="btn ghost" type="button" data-mat-remove="${m.id}" aria-label="Remove ${esc(m.name)} from this list">Remove</button></div>` : `<div class="mat"><div><b>${esc(m.name)}</b><span>About ${words(m.text).toLocaleString()} words</span></div>
         <label class="sr" for="mk-${m.id}">What is ${esc(m.name)}?</label><select class="stsel" id="mk-${m.id}" data-mat-kind="${m.id}">
           <option value="business"${m.kind === "business" ? " selected" : ""}>About my business</option><option value="email"${m.kind === "email" ? " selected" : ""}>An email I wrote</option></select>
         <button class="btn ghost" type="button" data-mat-remove="${m.id}" aria-label="Remove ${esc(m.name)}">Remove</button></div>`).join("")}</div>` : ""}
@@ -933,10 +932,19 @@ function fileToBase64(f){
 }
 async function addFiles(files){
   readBusiness();
-  const added = [], errors = [];
+  const added = [], errors = [], leadNotes = [];
   for (const f of files){
     try {
       let text, isEmail;
+      if (/\.csv$/i.test(f.name)) {
+        const parsed = await parseCSV(await f.text());
+        if (parsed && isLeadList(parsed.meta.fields || [])) {
+          const r = importLeads(parsed.data, f.name);
+          added.push({id:Date.now().toString(36) + added.length, name:f.name, kind:"leads", count:r.added, text:""});
+          leadNotes.push(`${r.added} lead${r.added === 1 ? "" : "s"} from ${f.name} added to your pipeline` + (r.contacted ? `, and ${r.contacted} already contacted added to do-not-contact` : ""));
+          continue;
+        }
+      }
       if (TEXT_FILE.test(f.name)) { text = (await f.text()).slice(0, 20000); isEmail = /^(subject|from|to):/im.test(text) || /^\s*(hi|hello|hey|dear)\b/i.test(text); }
       else { const d = await post("/api/extract", {name:f.name, data:await fileToBase64(f)}); text = d.text; isEmail = d.is_email; }
       if (!text.trim()) throw new Error(`We couldn’t find any text in ${f.name}.`);
@@ -948,7 +956,8 @@ async function addFiles(files){
   renderBusiness(); refreshStrength();
   if (errors.length) $("bErr").innerHTML = `<div class="err">${esc(errors.join(" "))}</div>`;
   if (!added.length) return;
-  toast(`Added ${added.length} file${added.length === 1 ? "" : "s"}.`);
+  toast(leadNotes.length ? leadNotes.join(". ") + "." : `Added ${added.length} file${added.length === 1 ? "" : "s"}.`);
+  renderAll();
   const about = added.filter(m => m.kind === "business").map(m => m.text).join("\n\n").slice(0, 10000);
   if (SERVER.claude && about) readFromSource({text:about}, $("bRead"), added.map(m => m.name).join(", "));
 }
@@ -1057,18 +1066,42 @@ function exportCSV(){
 }
 const TIER_RANK = {now:0, try:1, need_email:2, later:3};
 
-/* ---------- CSV import ---------- */
-function importCSV(file){
-  if (!window.Papa) return toast("The CSV reader didn’t load. Check your connection.");
-  Papa.parse(file, {header:true, skipEmptyLines:true, transformHeader:h => h.trim().toLowerCase().replace(/\s+/g,"_"), complete: res => {
-    const missing = ["business_name","email"].filter(f => !(res.meta.fields || []).includes(f));
-    if (missing.length) return toast(`Missing column: ${missing.join(", ")}`);
-    const rows = res.data.filter(r => r.business_name).map((r,i) => ({...r, lead_id:r.lead_id || "R" + (i+1)}));
-    if (!rows.length) return toast("No rows with a business name found");
-    imported = {name:file.name, rows}; LEADS = rows; stages = {}; drafts = {}; viewFilter = null; store.set(K("stages"), stages); store.set(K("drafts"), drafts);
-    toast(store.set(K("import"), imported) ? `Imported ${rows.length} leads for ${profile.company}` : "Imported, but too big to keep after reload");
-    renderAll();
-  }, error: () => toast("That file couldn’t be read as a CSV")});
+/* ---------- lead lists added in the profile's upload box ---------- */
+const pick = (r, ...keys) => { for (const k of keys) if ((r[k] || "").trim()) return r[k].trim(); return ""; };
+function isLeadList(fields){ return ["business_name","org_name","company","business"].some(f => fields.includes(f)); }
+function parseCSV(text){
+  return new Promise(ok => {
+    if (!window.Papa) return ok(null);
+    Papa.parse(text, {header:true, skipEmptyLines:true, transformHeader:h => h.trim().toLowerCase().replace(/\s+/g, "_"), complete:ok, error:() => ok(null)});
+  });
+}
+// Accepts our own export and the owner's sample sheet (org_name, leader_name, role, url_info, status...).
+function importLeads(rows, fileName){
+  const have = new Set(LEADS.map(l => (l.business_name + "|" + (l.email || "")).toLowerCase()));
+  const stamp = Date.now().toString(36), added = [], contacted = [];
+  rows.forEach((r, i) => {
+    const name = pick(r, "business_name", "org_name", "company", "business");
+    if (!name || /^not found$/i.test(name)) return;
+    const email = pick(r, "email").toLowerCase(), key = (name + "|" + email).toLowerCase();
+    if (have.has(key)) return;
+    have.add(key);
+    const type = pick(r, "category", "org_type", "type").replace(/^SMB-/i, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+    const l = {lead_id:`I${stamp}-${i}`, business_name:name, email, contact_name:pick(r, "contact_name", "leader_name", "contact"),
+      contact_title:pick(r, "contact_title", "role", "title"), address:pick(r, "address"), phone:pick(r, "phone"),
+      category:type === "Small and Medium Businesses" ? "Business" : type || "Business", website:pick(r, "website", "url_info", "url"),
+      summary:pick(r, "summary", "what_they_do"), imported:fileName};
+    const st = pick(r, "status", "stage").toLowerCase();
+    if (STAGE_NAME[st] && st !== "new") { stages[l.lead_id] = {stage:st, at:Date.now()}; if (st === "emailed" || st === "replied") contacted.push(name); }
+    added.push(l);
+  });
+  LEADS = [...LEADS, ...added];
+  search = {...(search || {source:fileName, at:Date.now()}), leads:LEADS};
+  store.set(K("search"), search); store.set(K("stages"), stages);
+  if (contacted.length){
+    const dnc = new Set((FIND.dnc || "").split("\n").map(x => x.trim()).filter(Boolean));
+    contacted.forEach(n => dnc.add(n)); FIND.dnc = [...dnc].join("\n"); store.set(FKEY(), FIND);
+  }
+  return {added:added.length, contacted:contacted.length};
 }
 
 /* ---------- server calls ---------- */
@@ -1198,7 +1231,9 @@ function finishSearch(res){
   if (!profile.pitch && JOB.profile.sell){ profile.pitch = `help businesses like yours with ${JOB.profile.sell}`; store.set(K("profile"), profile); }
   search = {leads:res.leads, source:res.source, seconds:res.seconds, job_id:JOB.id, profile:JOB.profile, at:Date.now()};
   imported = null; store.set(K("import"), null);
-  LEADS = res.leads; stages = {}; drafts = {}; viewFilter = null;
+  const keep = LEADS.filter(l => l.imported), names = new Set(res.leads.map(l => l.business_name.toLowerCase()));
+  LEADS = [...res.leads, ...keep.filter(l => !names.has(l.business_name.toLowerCase()))];
+  search.leads = LEADS; stages = Object.fromEntries(Object.entries(stages).filter(([id]) => keep.some(l => l.lead_id === id))); drafts = {}; viewFilter = null;
   if (!store.set(K("search"), search)) toast("Too many results to keep after a reload.");
   store.set(K("stages"), stages); store.set(K("drafts"), drafts);
   view = "board"; renderFind(); renderAll();
@@ -1274,7 +1309,6 @@ function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("on"
 /* ---------- events ---------- */
 document.addEventListener("click", e => {
   if ($("side").classList.contains("open") && !e.target.closest("#side") && !e.target.closest("#menuBtn")) { $("side").classList.remove("open"); return; }
-  if (e.target.closest("[data-import]")) { $("side").classList.remove("open"); return $("file").click(); }
   if (e.target.closest("[data-export]")) { $("side").classList.remove("open"); return exportCSV(); }
   const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); view = ["find","business","settings"].includes(go.dataset.go) ? go.dataset.go : "board"; viewFilter = null; if (view === "find") renderFind(); if (view === "business") renderBusiness(); renderAll(); window.scrollTo(0, 0); return; }
   const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); FIND = Object.assign({}, FIND_DEFAULT, store.get(FKEY(), {})); JOB = null; view = LEADS.length ? "board" : (profile.sell ? "find" : "business"); viewFilter = null; renderFind(); renderBusiness(); turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company || "your business"}`); } $("side").classList.remove("open"); return; }
@@ -1290,7 +1324,6 @@ document.addEventListener("keydown", e => {
 $("askForm").addEventListener("submit", e => { e.preventDefault(); ask($("askInput").value); });
 $("tAsk").addEventListener("click", () => ask("Who should I follow up with?"));
 $("menuBtn").addEventListener("click", () => $("side").classList.add("open"));
-$("file").addEventListener("change", e => { const f = e.target.files[0]; if (f) importCSV(f); e.target.value = ""; });
 $("dClose").addEventListener("click", closeDrawer);
 $("scrim").addEventListener("click", closeDrawer);
 
