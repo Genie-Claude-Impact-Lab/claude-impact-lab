@@ -292,9 +292,10 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
     <button class="nav" type="button" aria-current="page" data-go="board"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Pipeline</span></button>
     <button class="nav" type="button" data-go="business"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Your business profile</span></button>
     <button class="nav" type="button" data-import><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Import a lead list (CSV)</span></button>
+    <button class="nav" type="button" data-go="settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
     <div class="sec">Who you sell to</div>
     <div id="views"></div>
-    <div class="sec">Businesses</div>
+    <div class="sec">Your businesses</div>
     <div id="personas"></div>
     <div class="me"><span class="av" id="meAv"></span><div><span id="meName"></span><small id="meCo"></small></div></div>
   </nav>
@@ -318,6 +319,7 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
     <div id="sampleBanner"></div>
     <section id="findView" hidden></section>
     <section id="bizView" hidden></section>
+    <section id="setView" hidden></section>
     <div id="boardView">
     <div class="row">
       <section class="panel" aria-labelledby="fT">
@@ -385,8 +387,15 @@ const store = {
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
 };
 const DAY = 86400000;
-let persona = store.get("ll4-persona", "mine");
-if (!PERSONAS[persona]) persona = "mine";
+// Your own businesses live in a list; the two sample businesses are fixed demos.
+const SAMPLES = ["coffee", "saas"];
+const isSample = id => SAMPLES.includes(id);
+const def = id => PERSONAS[id] || PERSONAS.mine;
+let OWN = store.get("ll4-own", null) || ["mine"];
+let SETTINGS = Object.assign({showSamples:true, theme:"auto"}, store.get("ll4-settings", {}));
+if (SETTINGS.theme !== "auto") document.documentElement.dataset.theme = SETTINGS.theme;
+let persona = store.get("ll4-persona", OWN[0]);
+if (!OWN.includes(persona) && !(isSample(persona) && SETTINGS.showSamples)) persona = OWN[0];
 const K = k => `ll4-${persona}-${k}`;
 let imported, search, LEADS, profile, drafts, stages;
 function seedStages(rows){
@@ -403,7 +412,7 @@ function loadPersona(){
   imported = store.get(K("import"), null);
   search = store.get(K("search"), null);
   LEADS = imported?.rows || search?.leads || DATA[persona] || [];
-  profile = Object.assign({}, PERSONAS[persona].profile, store.get(K("profile"), {}));
+  profile = Object.assign({}, def(persona).profile, store.get(K("profile"), {}));
   drafts = store.get(K("drafts"), {});
   stages = store.get(K("stages"), null) || (imported || !DATA[persona] ? {} : seedStages(DATA[persona]));
 }
@@ -491,10 +500,11 @@ function views(){
 function renderSide(){
   $("sellerCard").innerHTML = `<small>Finding customers for</small><b>${esc(profile.company || "Your business")}</b><p>${profile.pitch ? `We ${esc(profile.pitch)}.` : "Add your business so every email sounds like you."}</p>`;
   $("views").innerHTML = views().map(v => `<button class="view" type="button" data-view="${esc(v.key)}" aria-pressed="${viewFilter?.key === v.key}"><span class="ic"><svg class="i" viewBox="0 0 24 24">${v.icon}</svg></span><span>${esc(v.label)}<small>${v.ids.length} leads</small></span></button>`).join("");
-  $("personas").innerHTML = Object.entries(PERSONAS).map(([k, p]) => {
-    const co = (k === persona ? profile.company : (store.get(`ll4-${k}-profile`, {}).company || p.profile.company)) || "Your business";
-    return `<button class="view" type="button" data-persona="${k}" aria-pressed="${k === persona}"><span class="ic"><svg class="i" viewBox="0 0 24 24">${p.icon}</svg></span><span>${esc(co)}<small>${k === persona ? "Active now" : "Switch to this business"}</small></span></button>`;
-  }).join("");
+  const item = (k, name, sub) => `<button class="view" type="button" data-persona="${k}" aria-pressed="${k === persona}"><span class="ic"><svg class="i" viewBox="0 0 24 24">${def(k).icon}</svg></span><span>${esc(name)}<small>${esc(sub)}</small></span></button>`;
+  const nameOf = k => (k === persona ? profile.company : store.get(`ll4-${k}-profile`, {})?.company) || "Untitled business";
+  $("personas").innerHTML = OWN.map(k => item(k, nameOf(k), k === persona ? "Active now" : "Switch to this business")).join("")
+    + `<button class="view" type="button" data-add-business><span class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>Add a business<small>Start a new profile</small></span></button>`
+    + (SETTINGS.showSamples ? `<div class="sec" style="margin-top:22px">Sample businesses</div>` + SAMPLES.map(k => item(k, def(k).profile.company, k === persona ? "Viewing now" : "See a filled-in example")).join("") : "");
   $("meAv").textContent = initials(profile.senderName);
   $("meName").textContent = profile.senderName || "You";
   $("meCo").textContent = profile.senderTitle ? `${profile.senderTitle}, ${profile.company}` : profile.company;
@@ -567,10 +577,10 @@ function renderSuggest(){
   $("askInput").placeholder = profile.company ? `Ask Leadline to find, sort or email ${profile.company}’s leads` : "Ask Leadline to find or sort your leads";
 }
 function showView(){
-  $("findView").hidden = view !== "find"; $("bizView").hidden = view !== "business"; $("boardView").hidden = view !== "board";
+  $("findView").hidden = view !== "find"; $("bizView").hidden = view !== "business"; $("setView").hidden = view !== "settings"; if (view === "settings") renderSettings(); $("boardView").hidden = view !== "board";
   $("suggest").hidden = $("askForm").hidden = view !== "board";
-  $("sampleBanner").innerHTML = persona === "mine" ? "" : `<div class="banner"><span>You’re looking at a sample business, <b>${esc(profile.company)}</b>. Nothing here is real.</span>
-    <button class="btn dark" type="button" data-persona="mine">Switch to your business</button></div>`;
+  $("sampleBanner").innerHTML = !isSample(persona) || view === "settings" ? "" : `<div class="banner"><span>You’re looking at a sample business, <b>${esc(profile.company)}</b>. Nothing here is real.</span>
+    <button class="btn dark" type="button" data-persona="${esc(OWN[0])}">Switch to your business</button></div>`;
   document.querySelectorAll(".nav[data-go]").forEach(b => b.dataset.go === view ? b.setAttribute("aria-current","page") : b.removeAttribute("aria-current"));
 }
 function renderAll(){ renderSide(); renderFunnel(); renderTasks(); renderBoard(); renderAside(); renderSuggest(); showView(); }
@@ -855,7 +865,7 @@ function renderBusiness(){
     </section>
     <div class="go"><button class="btn dark big" type="button" id="bSearch">Save and start a search</button>
       <button class="btn" type="button" id="bSave">Save profile</button>
-      ${persona === "mine" ? `<button class="btn ghost" type="button" id="bExample">Fill with an example</button><button class="btn ghost" type="button" id="bFresh">Start fresh</button>`
+      ${!isSample(persona) ? `<button class="btn ghost" type="button" id="bExample">Fill with an example</button><button class="btn ghost" type="button" id="bFresh">Start fresh</button><button class="btn ghost" type="button" data-remove-business="${esc(persona)}">Remove this business</button>`
         : `<button class="btn ghost" type="button" id="bRestore">Restore sample profile</button>`}</div>
   </div>`;
 }
@@ -881,7 +891,7 @@ async function readFromSource(body, btn, label){
 function startFresh(){
   if (!confirm("Clear your business profile, your search and your leads, and start from scratch?")) return;
   ["profile","search","stages","drafts","import"].forEach(k => store.set(K(k), null));
-  try { localStorage.removeItem(FIND_KEY); } catch(e){}
+  store.set(FKEY(), null);
   FIND = Object.assign({}, FIND_DEFAULT); JOB = null; loadPersona(); view = "business"; renderBusiness(); renderFind(); renderAll(); toast("Starting fresh.");
 }
 document.addEventListener("click", e => {
@@ -895,7 +905,7 @@ document.addEventListener("click", e => {
   if (e.target.closest("#bSearch")){ readBusiness(); view = "find"; renderFind(); renderAll(); window.scrollTo(0, 0); return; }
   if (e.target.closest("#bExample")){ profile = {...profile, ...PROFILE_EXAMPLE}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Example filled in. Change anything you like."); }
   if (e.target.closest("#bFresh")) return startFresh();
-  if (e.target.closest("#bRestore")){ profile = {...PERSONAS[persona].profile}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Sample profile restored."); }
+  if (e.target.closest("#bRestore")){ profile = {...def(persona).profile}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Sample profile restored."); }
 });
 document.addEventListener("input", e => { if (e.target.closest("#bizView") && e.target.dataset.key) { readBusiness(); refreshStrength(); } });
 document.addEventListener("change", async e => {
@@ -909,6 +919,69 @@ document.addEventListener("change", async e => {
   if (SERVER.claude) return readFromSource({text}, e.target.closest("label") || $("bRead"), f.name);
   if (!profile.samples?.includes(text.slice(0, 200))) profile.samples = ((profile.samples || "") + "\n\n" + text).trim().slice(0, 8000);
   store.set(K("profile"), profile); renderBusiness(); renderSide(); toast("Added to your sample emails.");
+});
+
+/* ---------- businesses and settings ---------- */
+function switchTo(id, toView){
+  persona = id; store.set("ll4-persona", persona); loadPersona();
+  FIND = Object.assign({}, FIND_DEFAULT, store.get(FKEY(), {})); JOB = null; viewFilter = null; turns = []; lastExchange = null;
+  view = toView || (LEADS.length ? "board" : profile.sell ? "find" : "business");
+  renderAgent(); renderFind(); renderBusiness(); renderAll(); window.scrollTo(0, 0);
+}
+function addBusiness(){
+  const id = "b" + Date.now().toString(36);
+  OWN.push(id); store.set("ll4-own", OWN);
+  switchTo(id, "business"); toast("New business added. Start with its profile.");
+}
+function removeBusiness(id){
+  const name = (id === persona ? profile.company : store.get(`ll4-${id}-profile`, {})?.company) || "this business";
+  if (!confirm(`Remove ${name}? This deletes its profile, leads and email drafts from this browser.`)) return;
+  ["profile","search","stages","drafts","import","find"].forEach(k => { try { localStorage.removeItem(`ll4-${id}-${k}`); } catch(e){} });
+  OWN = OWN.filter(x => x !== id);
+  if (!OWN.length) OWN = ["b" + Date.now().toString(36)];
+  store.set("ll4-own", OWN);
+  if (persona === id) switchTo(OWN[0], view === "settings" ? "settings" : undefined); else renderAll();
+  toast(`Removed ${name}.`);
+}
+function saveSettings(){ store.set("ll4-settings", SETTINGS); }
+function renderSettings(){
+  const key = (on, name, does, how) => `<div class="arow"><b>${name}: ${on ? "connected" : "not connected"}</b><span>${does}</span>${on ? "" : `<span>${how}</span>`}</div>`;
+  const nameOf = k => (k === persona ? profile.company : store.get(`ll4-${k}-profile`, {})?.company) || "Untitled business";
+  $("setView").innerHTML = `<div class="find">
+    <section class="panel"><h2>Settings</h2><p class="lede">Settings are saved in this browser.</p></section>
+    <section class="panel"><h3 class="h3">Your businesses</h3><p class="lede">Each business has its own profile, searches, leads and drafts.</p>
+      ${OWN.map(k => `<div class="arow" style="grid-template-columns:1fr auto;align-items:center"><b>${esc(nameOf(k))}${k === persona ? ` <span class="ver">active</span>` : ""}</b>
+        <span style="display:flex;gap:8px;flex-wrap:wrap">${k === persona ? "" : `<button class="btn" type="button" data-persona="${esc(k)}">Switch</button>`}
+        <button class="btn ghost" type="button" data-remove-business="${esc(k)}">Remove</button></span></div>`).join("")}
+      <div class="go"><button class="btn dark" type="button" data-add-business>Add a business</button></div></section>
+    <section class="panel"><h3 class="h3">Sample businesses</h3><p class="lede">Two filled-in examples that show what Leadline does. Nothing in them is real.</p>
+      <div class="chips" role="group"><button type="button" class="chip" data-setting="showSamples" aria-pressed="${SETTINGS.showSamples}">Show sample businesses in the menu</button></div></section>
+    <section class="panel"><h3 class="h3">Appearance</h3>
+      <div class="seg" role="radiogroup" aria-label="Theme" style="max-width:420px">${[["auto","Match my device"],["light","Light"],["dark","Dark"]].map(([k, n]) =>
+        `<button type="button" role="radio" data-theme-choice="${k}" aria-checked="${SETTINGS.theme === k}" aria-selected="${SETTINGS.theme === k}">${n}</button>`).join("")}</div></section>
+    <section class="panel"><h3 class="h3">Connections</h3>
+      <p class="lede">Keys are kept on the computer running Leadline, in a file called <b>.env</b> in the app folder, never in the website. After adding a key, restart Leadline.</p>
+      ${key(SERVER.google, "Google Maps", "Finds businesses with reviews and open or closed status.", "Without it we use a free public map, which finds fewer businesses and is sometimes busy. Add GOOGLE_MAPS_API_KEY to .env.")}
+      ${key(SERVER.claude, "Claude", "Reads websites for owners’ names and fit, reads your website and files, and writes emails.", "Without it you fill in the questions yourself and emails use a template. Add ANTHROPIC_API_KEY to .env.")}</section>
+    <section class="panel"><h3 class="h3">Start over</h3><p class="lede">Remove every business, search, lead and draft saved in this browser. Sample businesses come back as they were.</p>
+      <div class="go"><button class="btn ghost" type="button" id="sClearAll" style="color:var(--warn)">Clear everything on this browser</button></div></section>
+  </div>`;
+}
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-add-business]")) { $("side").classList.remove("open"); return addBusiness(); }
+  const rm = e.target.closest("[data-remove-business]"); if (rm) return removeBusiness(rm.dataset.removeBusiness);
+  if (!e.target.closest("#setView")) return;
+  const st = e.target.closest("[data-setting]");
+  if (st){ SETTINGS[st.dataset.setting] = !SETTINGS[st.dataset.setting]; saveSettings();
+    if (!SETTINGS.showSamples && isSample(persona)) switchTo(OWN[0], "settings"); else renderAll(); return; }
+  const th = e.target.closest("[data-theme-choice]");
+  if (th){ SETTINGS.theme = th.dataset.themeChoice; saveSettings();
+    if (SETTINGS.theme === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = SETTINGS.theme;
+    return renderSettings(); }
+  if (e.target.closest("#sClearAll") && confirm("Clear every business, search, lead and draft saved in this browser?")){
+    try { Object.keys(localStorage).filter(k => k.startsWith("ll4-")).forEach(k => localStorage.removeItem(k)); } catch(err){}
+    location.reload();
+  }
 });
 
 /* ---------- CSV import ---------- */
@@ -956,10 +1029,11 @@ async function rewriteOnServer(){
 }
 
 /* ---------- new search (changes every run) ---------- */
-const FIND_KEY = "ll4-find";
+const FIND_KEY = "ll4-find";   // older single-business key, read once below
+const FKEY = () => K("find");
 const FIND_DEFAULT = {desc:"", types:[], types_other:"", other_on:false, city:"", radius:"10 miles", signals:[],
   avoid:["Chains and franchises"], how_many:"20", dnc:""};
-let FIND = Object.assign({}, FIND_DEFAULT, store.get(FIND_KEY, {}));
+let FIND = Object.assign({}, FIND_DEFAULT, store.get(FKEY(), null) || store.get(FIND_KEY, {}));
 let JOB = null;
 const EXAMPLE_TEXT = "Small accounting and bookkeeping firms in Seattle, WA.";
 const EXAMPLE = {types:["Accounting and bookkeeping firms"], types_other:"", other_on:false, city:"Seattle, WA", radius:"10 miles",
@@ -1008,7 +1082,7 @@ function renderFind(){
 function readFind(){
   const v = id => $(id) ? $(id).value : null;
   ["fDesc:desc","fOther:types_other","fCity:city","fDnc:dnc"].forEach(p => { const [id, k] = p.split(":"); if (v(id) !== null) FIND[k] = v(id); });
-  store.set(FIND_KEY, FIND);
+  store.set(FKEY(), FIND);
 }
 function renderProgress(){
   const el = $("fProg"); if (!el) return;
@@ -1047,7 +1121,7 @@ async function poll(){
   setTimeout(poll, 1000);
 }
 function finishSearch(res){
-  if (persona !== "mine"){ persona = "mine"; store.set("ll4-persona", persona); loadPersona(); }
+  if (isSample(persona)){ persona = OWN[0]; store.set("ll4-persona", persona); loadPersona(); }
   if (!profile.pitch && JOB.profile.sell){ profile.pitch = `help businesses like yours with ${JOB.profile.sell}`; store.set(K("profile"), profile); }
   search = {leads:res.leads, source:res.source, seconds:res.seconds, job_id:JOB.id, profile:JOB.profile, at:Date.now()};
   imported = null; store.set(K("import"), null);
@@ -1067,7 +1141,7 @@ async function fillFromSentence(){
     FIND = {...FIND, types:d.types || [], types_other:d.types_other || "", other_on:!!d.types_other, city:d.city || FIND.city,
       radius:d.radius || FIND.radius, signals:d.signals || []};
     if (!profile.sell && d.sell) { profile.sell = d.sell; store.set(K("profile"), profile); }
-    store.set(FIND_KEY, FIND); renderFind(); toast("Filled in. Check the choices and change anything that’s not right.");
+    store.set(FKEY(), FIND); renderFind(); toast("Filled in. Check the choices and change anything that’s not right.");
   } catch(e){ showFindError(e.message); }
 }
 // Chips and "Other…" toggles on both the profile and search pages.
@@ -1077,7 +1151,7 @@ document.addEventListener("click", e => {
   if (other){
     const on = other.getAttribute("aria-pressed") !== "true", box = $(other.dataset.other);
     other.setAttribute("aria-pressed", on); box.hidden = !on;
-    if (other.dataset.other === "fOtherBox") { FIND.other_on = on; store.set(FIND_KEY, FIND); }
+    if (other.dataset.other === "fOtherBox") { FIND.other_on = on; store.set(FKEY(), FIND); }
     else { profile.deciders_other_on = on; store.set(K("profile"), profile); }
     if (on) box.querySelector("input")?.focus();
     return;
@@ -1088,14 +1162,14 @@ document.addEventListener("click", e => {
     const obj = box.dataset.src === "profile" ? profile : FIND;
     if (box.dataset.multi === "1"){ const s = new Set(obj[name] || []); s.has(val) ? s.delete(val) : s.add(val); obj[name] = [...s]; ch.setAttribute("aria-pressed", s.has(val)); }
     else { obj[name] = val; box.querySelectorAll(".chip[data-val]").forEach(c => c.setAttribute("aria-pressed", c === ch)); }
-    if (box.dataset.src === "profile") store.set(K("profile"), profile); else store.set(FIND_KEY, FIND);
+    if (box.dataset.src === "profile") store.set(K("profile"), profile); else store.set(FKEY(), FIND);
     if (name === "radius") { readFind(); renderFind(); }
     refreshStrength(); return;
   }
   if (!e.target.closest("#findView")) return;
   if (e.target.closest("#fGo")) return runSearch();
   if (e.target.closest("#fFill")) return fillFromSentence();
-  if (e.target.closest("#fExample")){ readFind(); FIND = {...FIND, ...EXAMPLE, desc:EXAMPLE_TEXT}; store.set(FIND_KEY, FIND); renderFind(); }
+  if (e.target.closest("#fExample")){ readFind(); FIND = {...FIND, ...EXAMPLE, desc:EXAMPLE_TEXT}; store.set(FKEY(), FIND); renderFind(); }
 });
 document.addEventListener("input", e => { if (e.target.closest("#findView")) readFind(); });
 
@@ -1128,8 +1202,8 @@ function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("on"
 document.addEventListener("click", e => {
   if ($("side").classList.contains("open") && !e.target.closest("#side") && !e.target.closest("#menuBtn")) { $("side").classList.remove("open"); return; }
   if (e.target.closest("[data-import]")) { $("side").classList.remove("open"); return $("file").click(); }
-  const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); view = ["find","business"].includes(go.dataset.go) ? go.dataset.go : "board"; viewFilter = null; if (view === "find") renderFind(); if (view === "business") renderBusiness(); renderAll(); window.scrollTo(0, 0); return; }
-  const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); view = LEADS.length ? "board" : (profile.sell ? "find" : "business"); viewFilter = null; renderFind(); renderBusiness(); turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company || "your business"}`); } $("side").classList.remove("open"); return; }
+  const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); view = ["find","business","settings"].includes(go.dataset.go) ? go.dataset.go : "board"; viewFilter = null; if (view === "find") renderFind(); if (view === "business") renderBusiness(); renderAll(); window.scrollTo(0, 0); return; }
+  const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); FIND = Object.assign({}, FIND_DEFAULT, store.get(FKEY(), {})); JOB = null; view = LEADS.length ? "board" : (profile.sell ? "find" : "business"); viewFilter = null; renderFind(); renderBusiness(); turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company || "your business"}`); } $("side").classList.remove("open"); return; }
   const v = e.target.closest("[data-view]"); if (v){ const vw = views().find(x => x.key === v.dataset.view); viewFilter = viewFilter?.key === vw.key ? null : {ids:new Set(vw.ids), label:vw.label, key:vw.key}; $("side").classList.remove("open"); renderAll(); return; }
   const o = e.target.closest("[data-open]"); if (o) return openLead(o.dataset.open);
   const sg = e.target.closest(".sg"); if (sg) return ask(sg.textContent);
