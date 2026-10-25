@@ -1,7 +1,7 @@
 """Find small-business leads.
 
-1. Search Google Maps (Places API) for the kinds of businesses the owner sells to.
-   Without a Google key, fall back to OpenStreetMap (free, fewer results, no reviews).
+1. Search for the kinds of businesses the owner sells to: Google Maps (Places API, has reviews), TomTom
+   (free tier, no card, no reviews) or OpenStreetMap (free, fewer results, no reviews).
 2. Visit each business's website and collect email addresses from its home, Contact and About pages.
 3. Ask Claude to read the About page and pull out the owner's name and title (optional).
 4. Check that each email's domain can receive mail, then score and rank every lead.
@@ -15,7 +15,7 @@ import math
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import quote, quote_plus, unquote, urljoin, urlparse
 
 import requests
 
@@ -134,6 +134,90 @@ def google_search(query: str, key: str, center, radius_mi: float, limit: int) ->
             break
         time.sleep(1)
     return out[:limit]
+
+
+# ---------------------------------------------------------------- search: TomTom
+TOMTOM_URL = "https://api.tomtom.com/search/2/poiSearch/{query}.json"
+SOURCE_LABEL = {"google": "Google Maps", "tomtom": "TomTom", "osm": "OpenStreetMap"}
+
+
+def pick_source(google_key: str = "", tomtom_key: str = "", preferred: str = "") -> str:
+    """Which map to search. `preferred` (the MAP_SOURCE setting) wins if its key is present; otherwise
+    Google (it has reviews), then TomTom, then the free OpenStreetMap."""
+    pref = (preferred or "").strip().lower()
+    if pref == "google" and google_key:
+        return "google"
+    if pref == "tomtom" and tomtom_key:
+        return "tomtom"
+    if pref in ("osm", "openstreetmap"):
+        return "osm"
+    if google_key:
+        return "google"
+    if tomtom_key:
+        return "tomtom"
+    return "osm"
+
+
+def _site_url(url: str) -> str:
+    url = (url or "").strip()
+    if not url:
+        return ""
+    return url if re.match(r"https?://", url, re.I) else "https://" + url
+
+
+def parse_tomtom(r: dict) -> dict:
+    """One TomTom search result -> a lead. TomTom has no reviews, ratings or open/closed flag."""
+    poi, addr, pos = r.get("poi") or {}, r.get("address") or {}, r.get("position") or {}
+    industry = ""
+    for c in poi.get("classifications") or []:
+        names = c.get("names") or []
+        if names and names[0].get("name"):
+            industry = names[0]["name"]
+            break
+    industry = (industry or "").strip()
+    name, address = (poi.get("name") or "").strip(), (addr.get("freeformAddress") or "").strip()
+    return {
+        "id": "t:" + str(r.get("id", "")),
+        "business_name": name,
+        "address": address,
+        "industry": industry[:1].upper() + industry[1:],
+        "website": _site_url(poi.get("url", "")),
+        "phone": (poi.get("phone") or "").strip(),
+        "rating": None, "review_count": None, "last_review_date": "",
+        "status": "open",
+        "maps_url": "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{name} {address}".strip()),
+        "latlon": (pos["lat"], pos["lon"]) if "lat" in pos and "lon" in pos else None,
+        "is_chain": bool(poi.get("brands")),
+        "found_on": "TomTom",
+    }
+
+
+def tomtom_search(query: str, key: str, center, radius_mi: float, limit: int, get=None) -> list[dict]:
+    """Businesses matching `query` within `radius_mi` of `center`, from TomTom's POI search. One request."""
+    if not center:
+        raise SearchError("We couldn’t find that city. Try writing it like “Seattle, WA”.")
+    get = get or requests.get
+    params = {"key": key, "lat": f"{center[0]:.5f}", "lon": f"{center[1]:.5f}", "radius": int(radius_mi * 1609.34),
+              "limit": max(1, min(100, limit)), "countrySet": "US", "language": "en-US"}
+    try:
+        r = get(TOMTOM_URL.format(query=quote(query, safe="")), params=params, timeout=20)
+    except requests.RequestException:
+        raise SearchError("We couldn’t reach TomTom. Check your internet connection and try again.")
+    if r.status_code != 200:
+        try:
+            body = r.json() or {}
+            msg = body.get("errorText") or (body.get("detailedError") or {}).get("message") or ""
+        except Exception:
+            msg = (getattr(r, "text", "") or "")[:200]
+        if r.status_code == 403:
+            raise SearchError("TomTom refused the search. Either the TomTom key was copied wrong, or this month’s free "
+                              f"requests are used up. TomTom said: {msg}")
+        if r.status_code == 429:
+            raise SearchError("TomTom says we’re searching too fast. Wait a few seconds and try again.")
+        if r.status_code == 400:
+            raise SearchError(f"TomTom couldn’t understand that search. TomTom said: {msg}")
+        raise SearchError(f"TomTom search failed ({r.status_code}). Try again in a minute.")
+    return [parse_tomtom(x) for x in (r.json().get("results") or []) if (x.get("poi") or {}).get("name")]
 
 
 # ---------------------------------------------------------------- search: OpenStreetMap (free fallback)
@@ -708,7 +792,8 @@ def norm(s):
 
 def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_client=None,
                claude_model: str = "claude-sonnet-5-5", progress=lambda msg, frac: None,
-               visit=visit_website, mx=has_mx, log=lambda text: None, verify=None) -> dict:
+               visit=visit_website, mx=has_mx, log=lambda text: None, verify=None, tomtom_key: str = "",
+               map_source: str = "") -> dict:
     types = list(profile.get("types", []))
     queries = [q for t in types for q in TYPES.get(t, {}).get("google", [])]
     if profile.get("types_other"):
@@ -724,12 +809,16 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
     center = geocode(city)
 
     progress("Searching for businesses…", 0.05)
-    if google_key:
-        source = "Google Maps"
+    src = pick_source(google_key, tomtom_key, map_source)
+    if src in ("google", "tomtom"):
+        source = SOURCE_LABEL[src]
         per = max(5, math.ceil(limit / len(queries)))
         found = []
         for q in queries:
-            found += google_search(f"{q} in {city}", google_key, center, radius, per)
+            if src == "google":
+                found += google_search(f"{q} in {city}", google_key, center, radius, per)
+            else:   # one request returns up to 100 results, so ask for a bigger pool and keep the best below
+                found += tomtom_search(q, tomtom_key, center, radius, max(per * 3, 40))
     else:
         source = "OpenStreetMap"
         filters = [f for t in types for f in TYPES.get(t, {}).get("osm", [])]

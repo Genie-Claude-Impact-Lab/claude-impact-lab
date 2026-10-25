@@ -890,7 +890,7 @@ function renderFind(){
         <label class="field"><span>Businesses you never want to contact (one per line)</span><textarea id="fDnc" style="min-height:80px">${esc(FIND.dnc)}</textarea></label>
       </details>
       <div class="go"><button class="btn dark big" type="button" id="fGo"${running ? " disabled" : ""}>${running ? "Finding leads…" : "Find leads"}</button></div>
-      <p class="modeline">${SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses. Add a Google key for fuller results."}
+      <p class="modeline">${SERVER.source_note || (SERVER.google ? "Searching Google Maps." : "Free mode: searching OpenStreetMap, a free public map, which finds fewer businesses. Add a TomTom or Google key for fuller results.")}
         ${SERVER.claude ? "" : " Add a Claude key for owner names, fit and written emails."} It usually takes 30 to 60 seconds.</p>
       <div id="fErr"></div><div id="fProg"></div>
     </section></div>`;
