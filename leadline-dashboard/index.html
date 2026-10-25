@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leadline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --side:#1B1616; --side-ink:#F3EFEF; --side-muted:#8E8585; --side-chip:#3A3333;
+  --canvas:#EFEFF1; --card:#FFFFFF; --ink:#141414; --muted:#6E6E73; --line:#E3E3E7; --track:#EDEDF0;
+  --blue:#4A86E8; --b1:#CFE3F8; --b2:#9CC3F1; --b3:#4A86E8;
+  --dark-card:#1B1616; --dark-ink:#F5F2F2; --dark-muted:#A79E9E;
+  --av-ink:#1E4E9A; --good:#1F8A5B; --warn:#B8650C; --btn:#141414; --btn-ink:#FFFFFF; --pill:#FFFFFF;
+  --scrim:rgba(20,16,16,.45);
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --side:#0B0A0A; --side-ink:#F3EFEF; --side-muted:#8A8282; --side-chip:#2A2525;
+    --canvas:#161618; --card:#202024; --ink:#F2F2F4; --muted:#A1A1A8; --line:#2E2E34; --track:#33333A;
+    --blue:#6FA2F0; --b1:#1F3350; --b2:#2D5288; --b3:#5B93EC;
+    --dark-card:#F2EFEF; --dark-ink:#141414; --dark-muted:#5E5757;
+    --av-ink:#CFE3F8; --good:#55CC94; --warn:#F0A75A; --btn:#F2F2F4; --btn-ink:#141414; --pill:#2A2A30;
+    --scrim:rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --side:#0B0A0A; --side-ink:#F3EFEF; --side-muted:#8A8282; --side-chip:#2A2525;
+  --canvas:#161618; --card:#202024; --ink:#F2F2F4; --muted:#A1A1A8; --line:#2E2E34; --track:#33333A;
+  --blue:#6FA2F0; --b1:#1F3350; --b2:#2D5288; --b3:#5B93EC;
+  --dark-card:#F2EFEF; --dark-ink:#141414; --dark-muted:#5E5757;
+  --av-ink:#CFE3F8; --good:#55CC94; --warn:#F0A75A; --btn:#F2F2F4; --btn-ink:#141414; --pill:#2A2A30;
+  --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+html{height:100%;background:var(--side);scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--side);color:var(--ink);font-family:Onest,"Helvetica Neue",Arial,system-ui,sans-serif;font-size:15px;line-height:1.45;font-weight:400;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--side)}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+.app{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:100vh}
+
+/* sidebar */
+.side{background:var(--side);color:var(--side-ink);padding:34px 26px 24px;display:flex;flex-direction:column;position:sticky;top:env(safe-area-inset-top,0px);height:100vh;overflow-y:auto}
+.brand{font-size:30px;font-weight:600;letter-spacing:-.02em;margin:0 0 40px}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 0;background:none;border:0;cursor:pointer;width:100%;text-align:left;font-size:16px;color:var(--side-ink);opacity:.82}
+.nav:hover,.nav[aria-current="page"]{opacity:1}
+.nav[aria-current="page"] span{border-bottom:1px solid currentColor}
+.sec{display:flex;justify-content:space-between;align-items:center;color:var(--side-muted);font-size:14px;margin:34px 0 10px}
+.view{display:flex;align-items:center;gap:14px;padding:8px 0;background:none;border:0;cursor:pointer;width:100%;text-align:left;color:var(--side-ink);font-size:16px}
+.view .ic{width:44px;height:44px;border-radius:50%;background:var(--side-chip);display:grid;place-items:center;flex:none}
+.view .ic svg{width:20px;height:20px}
+.view small{display:block;color:var(--side-muted);font-size:13px}
+.view[aria-pressed="true"] .ic{background:var(--side-ink);color:var(--side)}
+.me{margin-top:auto;padding-top:24px;display:flex;align-items:center;gap:12px}
+.me .av{background:var(--side-chip);color:var(--side-ink)}
+.me div{flex:1;min-width:0}
+.me small{display:block;color:var(--side-muted);font-size:13px}
+
+.seller{background:var(--side-chip);border-radius:22px;padding:16px 16px 14px;margin:-14px 0 22px}
+.seller small{display:block;color:var(--side-muted);font-size:12.5px}
+.seller b{display:block;font-weight:500;font-size:16px;margin:2px 0 4px}
+.seller p{margin:0;font-size:13px;color:var(--side-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.mailline{display:flex;align-items:center;gap:8px;background:var(--canvas);border-radius:14px;padding:9px 12px;margin:0 0 14px;font-size:13.5px;min-width:0}
+.mailline svg{width:17px;height:17px;flex:none;color:var(--blue)}
+.mailline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead.pick .mailline{background:rgba(127,127,127,.18)}
+.mail{background:var(--card);border-radius:28px;overflow:hidden;align-self:start}
+.mail-tools{display:flex;gap:10px;align-items:center;padding:16px 18px 0;flex-wrap:wrap}
+.mail-tools .seg{flex:1;min-width:240px}
+.mail-head{display:grid;grid-template-columns:72px 1fr;gap:8px 12px;padding:18px 26px 16px;border-bottom:1px solid var(--line);font-size:15px;margin:0}
+.mail-head dt{color:var(--muted)}
+.mail-head dd{margin:0;overflow-wrap:anywhere}
+.mail-head .subj{font-size:20px;font-weight:500;grid-column:1/-1;margin-top:6px;letter-spacing:-.01em}
+.mail-body{padding:22px 26px 22px;font-size:16.5px;line-height:1.7;white-space:pre-wrap;max-width:68ch}
+mark{color:inherit;padding:1px 2px;border-radius:4px}
+mark.ml{background:rgba(74,134,232,.14);box-shadow:inset 0 -2px 0 var(--blue)}
+mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
+.legend{display:flex;gap:8px 18px;flex-wrap:wrap;padding:0 26px 22px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.mail-edit{padding:4px 26px 24px}
+/* canvas */
+.canvas{background:var(--canvas);margin:16px 16px 16px 0;border-radius:40px;padding:26px 28px 40px;min-width:0}
+.topbar{display:flex;gap:10px;align-items:center;margin-bottom:18px}
+.ask{flex:1;display:flex;align-items:center;gap:12px;background:var(--card);border-radius:999px;padding:6px 6px 6px 20px;min-height:58px;border:1px solid transparent}
+.ask:focus-within{border-color:var(--blue)}
+.ask input{flex:1;border:0;background:transparent;font-size:16px;outline:none;min-width:0;padding:10px 0}
+.ask .spark{color:var(--blue)}
+.circle{width:58px;height:58px;border-radius:50%;background:var(--card);border:0;display:grid;place-items:center;cursor:pointer;flex:none;color:var(--ink)}
+.circle:hover{background:var(--pill)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:999px;border:1px solid var(--line);background:var(--card);padding:12px 20px;min-height:46px;cursor:pointer;font-size:15px;color:var(--ink);text-decoration:none;white-space:nowrap}
+.btn.dark{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+.btn.dark:hover{filter:brightness(1.15)}
+.btn.big{min-height:58px;padding:0 26px;font-size:16px}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;border-color:transparent}
+.menu{display:none}
+
+/* agent panel */
+.agent{background:var(--card);border-radius:28px;padding:20px 24px;margin-bottom:18px}
+.agent-head{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.agent-head .grow{flex:1}
+.turn{margin-top:14px}
+.turn .you{font-size:14px;color:var(--muted)}
+.turn .say{font-size:18px;font-weight:300;margin-top:4px;white-space:pre-wrap}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.step{font-size:13px;background:var(--canvas);border-radius:999px;padding:5px 12px;color:var(--ink)}
+.suggest{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 18px}
+.sg{border:1px solid var(--line);background:transparent;border-radius:999px;padding:8px 14px;font-size:14px;cursor:pointer;color:var(--ink)}
+.sg:hover{background:var(--card)}
+.filterchip{display:inline-flex;align-items:center;gap:8px;background:var(--btn);color:var(--btn-ink);border-radius:999px;padding:8px 8px 8px 16px;font-size:14px;margin:0 0 14px}
+.filterchip button{border:0;background:rgba(255,255,255,.18);color:inherit;border-radius:50%;width:26px;height:26px;cursor:pointer}
+
+/* top row */
+.row{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;margin-bottom:34px}
+.panel{background:var(--card);border-radius:32px;padding:26px 28px}
+.p-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.p-title h2{font-size:20px;font-weight:400;margin:0;flex:1}
+.big{font-size:40px;font-weight:300;letter-spacing:-.02em;line-height:1}
+.delta{font-size:14px;color:var(--muted)}
+.funnel{position:relative;margin-top:18px}
+.funnel svg{display:block;width:100%;height:230px}
+.flabels{position:absolute;inset:0;pointer-events:none}
+.flabels .lb{position:absolute;top:0;transform:translateX(-50%);font-size:14px;color:var(--ink);white-space:nowrap}
+.flabels .ln{position:absolute;top:24px;bottom:0;width:1px;background:var(--card);opacity:.7}
+.flabels .pc{position:absolute;top:50%;transform:translate(-50%,-50%);background:#fff;color:#141414;border-radius:999px;padding:4px 12px;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.task{margin-top:20px;cursor:pointer;border:0;background:none;width:100%;text-align:left;padding:0}
+.task .t{display:flex;justify-content:space-between;gap:10px;font-size:16px}
+.task .t small{font-size:14px;color:var(--muted);white-space:nowrap}
+.bar{height:8px;background:var(--track);border-radius:999px;margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:999px}
+.arrow{width:54px;height:54px;border-radius:50%;background:var(--btn);color:var(--btn-ink);border:0;display:grid;place-items:center;cursor:pointer}
+
+/* board */
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:22px;overflow-x:auto;padding:4px 4px 12px;margin:0 -4px;scroll-snap-type:x proximity}
+.col{min-width:0;scroll-snap-align:start}
+.col h2{font-size:34px;font-weight:300;letter-spacing:-.02em;margin:0 0 18px;white-space:nowrap}
+.lead{background:var(--card);border-radius:28px;padding:22px 24px;margin-bottom:18px;cursor:pointer;border:1px solid transparent;transition:transform .15s}
+.lead:hover{border-color:var(--line)}
+.lead h3{font-size:20px;font-weight:400;margin:0 0 10px;letter-spacing:-.01em}
+.lead p{margin:0 0 14px;font-size:15.5px;line-height:1.5}
+.lead .why{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:4px;font-size:13.5px;color:var(--muted)}
+.lead .why li{display:flex;gap:8px}
+.lead .why li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--good);margin-top:7px;flex:none}
+.lead .why li.w::before{background:var(--warn)}
+.prog{display:flex;justify-content:space-between;font-size:14px}
+.lead-foot{display:flex;align-items:center;gap:10px;margin-top:16px}
+.lead-foot .who{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;gap:14px;font-size:14px;align-items:center}
+.meta span{display:inline-flex;gap:5px;align-items:center}
+.meta svg{width:18px;height:18px}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:500;flex:none;background:var(--b1);color:var(--av-ink)}
+.lead.pick{background:var(--dark-card);color:var(--dark-ink);transform:rotate(-2.2deg);margin:6px 4px 26px}
+.lead.pick:hover{transform:rotate(-1deg)}
+.lead.pick .why{color:var(--dark-muted)}
+.lead.pick .bar{background:rgba(255,255,255,.85)}
+.lead.pick .tag{display:inline-block;font-size:12px;border:1px solid currentColor;border-radius:999px;padding:2px 10px;margin-bottom:12px;opacity:.8}
+.colempty{border:1px dashed var(--line);border-radius:28px;padding:24px;color:var(--muted);font-size:14px}
+@media (prefers-reduced-motion: reduce){.lead,.lead.pick{transition:none}}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(980px,100%);background:var(--canvas);z-index:41;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s ease;border-radius:36px 0 0 36px;overflow:hidden;padding-top:env(safe-area-inset-top,0px)}
+.drawer.on{transform:none}
+@media (prefers-reduced-motion: reduce){.drawer,.scrim{transition:none}}
+.d-head{display:flex;align-items:center;gap:14px;padding:22px 26px 10px}
+.d-head h2{margin:0;font-size:30px;font-weight:300;letter-spacing:-.02em;flex:1;min-width:0}
+.d-head .sub{font-size:14px;color:var(--muted);font-weight:400;letter-spacing:0}
+.d-body{flex:1;overflow-y:auto;display:grid;grid-auto-rows:max-content;grid-template-columns:minmax(0,1fr) 320px;gap:18px;padding:10px 26px 26px;align-content:start}
+.facts{display:grid;gap:12px;margin:16px 0 0;font-size:14.5px}
+.facts dt{font-size:12.5px;color:var(--muted)}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.facts a{color:var(--blue)}
+.panel h3{font-size:16px;font-weight:500;margin:0 0 10px}
+.d-body .panel + .panel{margin-top:18px}
+.why2{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14.5px}
+.why2 li{display:flex;gap:8px}
+.why2 li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--good);margin-top:7px;flex:none}
+.why2.w li::before{background:var(--warn)}
+.seg{display:flex;gap:4px;background:var(--canvas);border-radius:999px;padding:4px;overflow-x:auto}
+.seg button{flex:1;border:0;background:transparent;border-radius:999px;padding:9px 14px;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap;min-height:40px}
+.seg button[aria-selected="true"]{background:var(--btn);color:var(--btn-ink)}
+.field{display:block;margin-top:14px}
+.field > span{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.field input,.field textarea{width:100%;border:1px solid var(--line);background:var(--canvas);border-radius:18px;padding:12px 16px;font-size:16px}
+.field textarea{resize:vertical;line-height:1.55;min-height:260px}
+.edited{font-size:11px;color:var(--warn);margin-left:6px}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.d-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 26px calc(14px + env(safe-area-inset-bottom,0px));background:var(--card)}
+.d-actions .grow{flex:1}
+.stsel{border:1px solid var(--line);background:var(--canvas);border-radius:999px;padding:10px 14px;min-height:46px;font-size:15px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);padding:12px 20px;border-radius:999px;font-size:14px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+
+@media (max-width:1180px){ .row{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:fixed;left:0;top:0;bottom:0;width:min(300px,86vw);height:auto;z-index:45;transform:translateX(-100%);transition:transform .25s ease;padding-top:calc(30px + env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  .side.open{transform:none}
+  .menu{display:grid}
+  .canvas{margin:8px;border-radius:28px;padding:14px 12px 28px}
+  .topbar{flex-wrap:wrap}
+  .ask{order:3;flex:1 1 100%;min-height:52px}
+  .topbar .mhead{flex:1;font-size:22px;font-weight:600;color:var(--ink)}
+  .circle{width:48px;height:48px}
+  .btn.big{min-height:48px;padding:0 18px}
+  .panel{border-radius:26px;padding:20px}
+  .big{font-size:32px}
+  .funnel svg{height:170px}
+  .flabels .lb{font-size:12px}
+  .flabels .pc{font-size:12px;padding:3px 8px}
+  .board{grid-auto-columns:86%}
+  .suggest{flex-wrap:nowrap;overflow-x:auto;margin:-4px -12px 14px;padding:0 12px;scrollbar-width:none}
+  .sg{flex:none;white-space:nowrap}
+  .col h2{font-size:28px}
+  .drawer{border-radius:0}
+  .d-body{grid-template-columns:minmax(0,1fr);padding:8px 14px 20px}
+  .mail-head{padding:16px 18px 14px;grid-template-columns:52px 1fr}
+  .mail-body{padding:18px;font-size:16px}
+  .legend{padding:0 18px 18px}
+  .mail-edit{padding:4px 18px 20px}
+  .mail-tools{padding:14px 14px 0}
+  .mail-tools .seg{min-width:0;flex:1 1 100%}
+  .d-head{padding:16px 14px 8px}
+  .d-head h2{font-size:24px}
+  .d-actions{padding-left:14px;padding-right:14px}
+  .d-actions .btn{flex:1}
+  .d-actions .grow{display:none}
+  .two{grid-template-columns:1fr}
+}
+@media (min-width:901px){ .mhead{display:none} }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="side" id="side" aria-label="Main">
+    <div class="brand">Leadline</div>
+    <div class="seller" id="sellerCard"></div>
+    <button class="nav" type="button" aria-current="page" data-go="board"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Pipeline</span></button>
+    <button class="nav" type="button" data-go="profile"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Your business</span></button>
+    <button class="nav" type="button" data-import><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Import leads</span></button>
+    <div class="sec">Who you sell to</div>
+    <div id="views"></div>
+    <div class="sec">Demo businesses</div>
+    <div id="personas"></div>
+    <div class="me"><span class="av" id="meAv"></span><div><span id="meName"></span><small id="meCo"></small></div></div>
+  </nav>
+
+  <main class="canvas">
+    <div class="topbar">
+      <button class="circle menu" type="button" id="menuBtn" aria-label="Open menu"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="mhead">Leadline</div>
+      <form class="ask" id="askForm" role="search">
+        <svg class="i spark" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+        <label class="sr" for="askInput">Ask Leadline</label>
+        <input id="askInput" autocomplete="off" placeholder="Ask Leadline to find, sort or email leads">
+        <button class="btn dark" type="submit" id="askBtn">Ask</button>
+      </form>
+      <button class="circle" type="button" data-import aria-label="Import leads CSV" title="Import leads CSV"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
+    </div>
+    <div class="suggest" id="suggest"></div>
+    <section class="agent" id="agent" hidden aria-live="polite"></section>
+    <div id="filterLine"></div>
+
+    <div class="row">
+      <section class="panel" aria-labelledby="fT">
+        <div class="p-title"><h2 id="fT">Your pipeline</h2><span class="big" id="fBig"></span><span class="delta" id="fDelta"></span></div>
+        <div class="funnel" id="funnel"></div>
+      </section>
+      <section class="panel" aria-labelledby="tT">
+        <div style="display:flex;align-items:flex-start;gap:12px"><div style="flex:1"><h2 id="tT" style="font-size:20px;font-weight:400;margin:0">Follow-ups</h2>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="big" id="tBig"></span><span class="delta" id="tDelta"></span></div></div>
+          <button class="arrow" type="button" id="tAsk" aria-label="Ask Leadline who to follow up with"><svg class="i" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></button></div>
+        <div id="tasks"></div>
+      </section>
+    </div>
+
+    <div class="board" id="board"></div>
+  </main>
+</div>
+<input type="file" id="file" accept=".csv,text/csv" class="sr" tabindex="-1" aria-hidden="true">
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" aria-hidden="true">
+  <div class="d-head"><h2 id="dTitle"></h2><button class="circle" type="button" id="dClose" aria-label="Close" style="background:var(--card)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="d-body" id="dBody"></div>
+  <div class="d-actions" id="dActions"></div>
+</aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = {"coffee": [{"lead_id": "C01", "business_name": "Second Pour Café", "category": "Café", "address": "412 E Pine St, Seattle, WA 98122", "website": "https://secondpourcaf.example.com", "phone": "(206) 555-0150", "contact_name": "Dana Whitlock", "contact_title": "Owner", "email": "dana@secondpourcaf.example.com", "business_score": 85, "google_rating": 4.8, "review_count": 212, "last_review_date": "2026-10-22", "summary": "Neighborhood espresso bar with a rotating guest-roaster pour-over menu.", "why_good": "Rotates guest roasters monthly, so open to new beans | Direct email to Dana Whitlock (Owner) | Active: new Google review 3 days ago", "watch_out": "Already pours beans from other local roasters", "website_text": "Neighborhood espresso bar on Capitol Hill. Every month we feature a guest roaster on our pour-over bar, alongside house espresso and fresh pastries.", "hook": "you feature a different guest roaster on your pour-over bar every month"}, {"lead_id": "C02", "business_name": "Lantern Street Coffee", "category": "Café", "address": "3510 Fremont Ave N, Seattle, WA 98103", "website": "https://lanternstreetcoffee.example.com", "phone": "(206) 555-0151", "contact_name": "Miguel Ortiz", "contact_title": "Co-owner", "email": "miguel@lanternstreetcoffee.example.com", "business_score": 85, "google_rating": 4.6, "review_count": 388, "last_review_date": "2026-10-20", "summary": "Busy two-shop café known for oat-milk lattes and weekend brunch lines.", "why_good": "Opening a second location, so coffee volume is growing | Direct email to Miguel Ortiz (Co-owner) | 388 reviews at 4.6★", "watch_out": "", "website_text": "Fremont’s favorite oat-milk latte. Our second shop opens in Ballard this spring, and we’re hiring baristas for both locations.", "hook": "you’re opening a second shop in Ballard this spring"}, {"lead_id": "C03", "business_name": "Brightloop Labs", "category": "Startup office", "address": "1100 Westlake Ave N, Seattle, WA 98109", "website": "https://brightlooplabs.example.com", "phone": "(206) 555-0152", "contact_name": "Jess Tran", "contact_title": "Office Manager", "email": "jess@brightlooplabs.example.com", "business_score": 82, "google_rating": 4.9, "review_count": 14, "last_review_date": "2026-10-04", "summary": "45-person software startup that lists great coffee as an office perk.", "why_good": "Careers page mentions coffee as a perk | Direct email to the Office Manager, who buys supplies | Growing team in a new office", "watch_out": "Few public reviews, as expected for an office", "website_text": "We build scheduling software for clinics. Our team of 45 just moved into a new office on Westlake, and our careers page promises great coffee every day.", "hook": "your team just moved into a new office on Westlake and your careers page promises great coffee"}, {"lead_id": "C04", "business_name": "Union Desk Coworking", "category": "Coworking space", "address": "1525 11th Ave, Seattle, WA 98122", "website": "https://uniondeskcoworking.example.com", "phone": "(206) 555-0153", "contact_name": "Grace Abernathy", "contact_title": "Community Manager", "email": "grace@uniondeskcoworking.example.com", "business_score": 80, "google_rating": 4.7, "review_count": 96, "last_review_date": "2026-10-13", "summary": "Coworking space for 200 members with free unlimited coffee.", "why_good": "Free coffee is part of the membership offer | Direct email to Grace Abernathy (Community Manager) | Active: new review 12 days ago", "watch_out": "", "website_text": "Desks, private offices and meeting rooms for 200 members. Membership includes free unlimited coffee and a members’ kitchen.", "hook": "you advertise free unlimited coffee to your 200 members"}, {"lead_id": "C05", "business_name": "Butter & Rye Bakery", "category": "Bakery", "address": "1820 N 45th St, Seattle, WA 98103", "website": "https://butterryebakery.example.com", "phone": "(206) 555-0154", "contact_name": "Hannah Moreau", "contact_title": "Owner", "email": "hannah@butterryebakery.example.com", "business_score": 78, "google_rating": 4.8, "review_count": 301, "last_review_date": "2026-10-23", "summary": "Wallingford bakery whose pastry case sells out by noon.", "why_good": "Only serves batch brew, so espresso is an upsell | Direct email to Hannah Moreau (Owner) | Active: new review 2 days ago", "watch_out": "Coffee is a side line, so orders may be smaller", "website_text": "Laminated pastries, rye loaves and seasonal tarts, baked every morning. We serve batch-brew coffee and our case usually sells out by noon.", "hook": "your pastry case sells out by noon, and right now you only pour batch brew"}, {"lead_id": "C06", "business_name": "Tidewater Robotics", "category": "Startup office", "address": "5800 1st Ave S, Seattle, WA 98108", "website": "https://tidewaterrobotics.example.com", "phone": "(206) 555-0155", "contact_name": "Sam Okoro", "contact_title": "People Operations Lead", "email": "sam@tidewaterrobotics.example.com", "business_score": 76, "google_rating": 4.5, "review_count": 22, "last_review_date": "2026-09-15", "summary": "80-person robotics startup hiring for 12 roles.", "why_good": "Job posts mention a stocked kitchen | Direct email to Sam Okoro (People Operations) | Hiring fast, so headcount is growing", "watch_out": "", "website_text": "We design warehouse robots. We’re 80 people and hiring for 12 roles, with a fully stocked kitchen and a Friday team breakfast.", "hook": "you’re hiring for 12 roles and your job posts mention a fully stocked kitchen and Friday team breakfasts"}, {"lead_id": "C07", "business_name": "Driftwood Espresso", "category": "Café", "address": "5401 Ballard Ave NW, Seattle, WA 98107", "website": "https://driftwoodespresso.example.com", "phone": "(206) 555-0156", "contact_name": "Priya Nair", "contact_title": "Owner", "email": "priya@driftwoodespresso.example.com", "business_score": 75, "google_rating": 4.7, "review_count": 154, "last_review_date": "2026-10-16", "summary": "Ballard espresso bar that sells retail bags of beans at the counter.", "why_good": "Sells retail bags, a second revenue line for you | Direct email to Priya Nair (Owner) | Active: new review 9 days ago", "watch_out": "", "website_text": "Small espresso bar on Ballard Ave. We sell retail bags of whole beans at the counter and grind to order.", "hook": "you sell retail bags of whole beans right at the counter"}, {"lead_id": "C08", "business_name": "Saltgrass Kitchen", "category": "Restaurant", "address": "2200 NW Market St, Seattle, WA 98107", "website": "https://saltgrasskitchen.example.com", "phone": "(206) 555-0157", "contact_name": "Marcus Delgado", "contact_title": "General Manager", "email": "marcus@saltgrasskitchen.example.com", "business_score": 74, "google_rating": 4.5, "review_count": 620, "last_review_date": "2026-10-19", "summary": "Brunch restaurant serving around 300 covers each weekend.", "why_good": "High coffee volume from bottomless drip | Direct email to Marcus Delgado (General Manager) | 620 reviews at 4.5★", "watch_out": "Restaurants often buy on price, not quality", "website_text": "All-day brunch in Ballard. Around 300 guests join us every weekend for hash, biscuits and bottomless drip coffee.", "hook": "your weekend brunch serves around 300 guests, with bottomless drip coffee"}, {"lead_id": "C09", "business_name": "Harbor Hive Workspace", "category": "Coworking space", "address": "10500 NE 8th St, Bellevue, WA 98004", "website": "https://harborhiveworkspace.example.com", "phone": "(206) 555-0158", "contact_name": "Owen Sato", "contact_title": "General Manager", "email": "owen@harborhiveworkspace.example.com", "business_score": 72, "google_rating": 4.6, "review_count": 58, "last_review_date": "2026-09-25", "summary": "Bellevue workspace that hosts weekly member breakfasts.", "why_good": "Weekly breakfasts need steady coffee | Direct email to Owen Sato (General Manager)", "watch_out": "Last review was a month ago", "website_text": "Flexible workspace in downtown Bellevue. We host member breakfasts every Wednesday and a monthly founders’ meetup.", "hook": "you host a member breakfast every Wednesday"}, {"lead_id": "C10", "business_name": "Moss & Mortar Café", "category": "Café", "address": "5900 Airport Way S, Seattle, WA 98108", "website": "https://mossmortarcaf.example.com", "phone": "(206) 555-0159", "contact_name": "", "contact_title": "", "email": "hello@mossmortarcaf.example.com", "business_score": 70, "google_rating": 4.4, "review_count": 88, "last_review_date": "2026-10-10", "summary": "Georgetown café that bakes in-house and serves drip all day.", "why_good": "Pours coffee all day, so steady volume | Active: new review 15 days ago", "watch_out": "Shared inbox only (hello@), no named person", "website_text": "Everything here is baked in-house. Drip coffee all day, espresso until 3, and local art on the walls.", "hook": "you bake everything in-house and pour drip coffee all day"}, {"lead_id": "C11", "business_name": "Northpaw Health", "category": "Startup office", "address": "315 1st Ave S, Seattle, WA 98104", "website": "https://northpawhealth.example.com", "phone": "(206) 555-0160", "contact_name": "Lena Fischer", "contact_title": "Workplace Coordinator", "email": "lena@northpawhealth.example.com", "business_score": 70, "google_rating": 4.8, "review_count": 9, "last_review_date": "2026-08-26", "summary": "Digital pet-health startup that hosts monthly community meetups.", "why_good": "Monthly events mean bulk coffee needs | Direct email to Lena Fischer (Workplace Coordinator)", "watch_out": "Only 9 reviews", "website_text": "Telehealth for pets. Our Pioneer Square office hosts a community meetup on the first Thursday of every month.", "hook": "your office hosts a community meetup on the first Thursday of every month"}, {"lead_id": "C12", "business_name": "Ember Table", "category": "Restaurant", "address": "188 106th Ave NE, Bellevue, WA 98004", "website": "https://embertable.example.com", "phone": "(206) 555-0161", "contact_name": "Wei Kowalski", "contact_title": "Chef-owner", "email": "wei@embertable.example.com", "business_score": 68, "google_rating": 4.7, "review_count": 433, "last_review_date": "2026-10-14", "summary": "Bellevue restaurant that pairs each dessert with a coffee.", "why_good": "Chef cares about coffee pairings | Direct email to Wei Kowalski (Chef-owner) | 433 reviews at 4.7★", "watch_out": "Evening service, so lower coffee volume", "website_text": "Seasonal Pacific Northwest dinners. Our dessert menu pairs every plate with a coffee or tea, chosen by our chef.", "hook": "your dessert menu pairs every plate with a coffee chosen by the chef"}, {"lead_id": "C13", "business_name": "Crumb Theory", "category": "Bakery", "address": "1500 Queen Anne Ave N, Seattle, WA 98109", "website": "https://crumbtheory.example.com", "phone": "(206) 555-0162", "contact_name": "", "contact_title": "", "email": "orders@crumbtheory.example.com", "business_score": 66, "google_rating": 4.6, "review_count": 140, "last_review_date": "2026-09-30", "summary": "Queen Anne bakery adding a morning espresso counter.", "why_good": "About to start serving espresso, so choosing a supplier now", "watch_out": "Shared inbox only (orders@), no named person", "website_text": "Croissants, cookies and celebration cakes. Coming soon: a morning espresso counter.", "hook": "you’re adding a morning espresso counter soon"}, {"lead_id": "C14", "business_name": "Little Summit Café", "category": "Café", "address": "25 Front St N, Issaquah, WA 98027", "website": "https://littlesummitcaf.example.com", "phone": "(206) 555-0163", "contact_name": "Rosa Iyer", "contact_title": "Owner", "email": "rosa@littlesummitcaf.example.com", "business_score": 64, "google_rating": 4.5, "review_count": 77, "last_review_date": "2026-04-08", "summary": "Trailside café that opens at 6 a.m. for hikers.", "why_good": "Early opening means morning coffee rush | Direct email to Rosa Iyer (Owner)", "watch_out": "Last review 6 months ago", "website_text": "On the way to the trailheads. We open at 6 a.m. with coffee to go, breakfast burritos and trail snacks.", "hook": "you open at 6 a.m. for hikers heading to the trailheads"}], "saas": [{"lead_id": "L004", "business_name": "Brightbook Accounting", "category": "Accounting firm", "address": "1363 Westlake Ave N, Seattle, WA 98109", "website": "https://brightbookaccounting.example.com", "phone": "(206) 555-0103", "contact_name": "Arjun Brennan", "contact_title": "Operations Director", "email": "abrennan@brightbookaccounting.example.com", "business_score": 85, "google_rating": 4.7, "review_count": 12, "last_review_date": "2026-10-20", "summary": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing.", "why_good": "Website mentions reconciliation and monthly close | Direct email to Arjun Brennan (Operations Director) | Active: new Google review 5 days ago", "watch_out": "", "website_text": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing. Serving 400 clients across the Puget Sound.", "hook": "your team handles monthly close, bank reconciliation and payroll for 400 clients"}, {"lead_id": "L005", "business_name": "Summit Ledger Group", "category": "Accounting firm", "address": "357 Central Way, Kirkland, WA 98033", "website": "https://summitledgergroup.example.com", "phone": "(206) 555-0104", "contact_name": "Sofia Sato", "contact_title": "Operations Director", "email": "sofia.sato@summitledgergroup.example.com", "business_score": 85, "google_rating": 3.7, "review_count": 18, "last_review_date": "2026-08-26", "summary": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing.", "why_good": "Website mentions reconciliation and monthly close | Direct email to Sofia Sato (Operations Director) | Active: new Google review 60 days ago", "watch_out": "", "website_text": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing. Serving 400 clients across the Puget Sound.", "hook": "your team handles monthly close, bank reconciliation and payroll for 400 clients"}, {"lead_id": "L007", "business_name": "Clearcount Advisors", "category": "Accounting firm", "address": "1506 Pine St, Seattle, WA 98101", "website": "https://clearcountadvisors.example.com", "phone": "(206) 555-0106", "contact_name": "Rosa Delgado", "contact_title": "Operations Director", "email": "rdelgado@clearcountadvisors.example.com", "business_score": 85, "google_rating": 4.2, "review_count": 210, "last_review_date": "2026-10-20", "summary": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing.", "why_good": "Website mentions reconciliation and monthly close | Direct email to Rosa Delgado (Operations Director) | Active: new Google review 5 days ago | Established: 210 reviews at 4.2★", "watch_out": "", "website_text": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing. Serving 40 clients across the Puget Sound.", "hook": "your team handles monthly close, bank reconciliation and payroll for 40 clients"}, {"lead_id": "L011", "business_name": "Balanced Desk", "category": "Bookkeeping service", "address": "993 Westlake Ave N, Seattle, WA 98109", "website": "https://balanceddesk.example.com", "phone": "(206) 555-0110", "contact_name": "Marcus Castillo", "contact_title": "Owner", "email": "marcus.castillo@balanceddesk.example.com", "business_score": 85, "google_rating": 3.8, "review_count": 18, "last_review_date": "2026-09-08", "summary": "Outsourced bookkeeping for restaurants, retailers and contractors.", "why_good": "Website mentions reconcile and AP/AR | Direct email to Marcus Castillo (Owner) | Active: new Google review 47 days ago", "watch_out": "", "website_text": "Outsourced bookkeeping for restaurants, retailers and contractors. We reconcile accounts, manage AP/AR and send you clean monthly reports.", "hook": "you reconcile accounts and manage AP/AR for restaurants, retailers and contractors"}, {"lead_id": "L015", "business_name": "Pike Street Legal", "category": "Law firm", "address": "2390 Westlake Ave N, Seattle, WA 98109", "website": "https://pikestreetlegal.example.com", "phone": "(206) 555-0114", "contact_name": "Elena Lindqvist", "contact_title": "Office Administrator", "email": "elena.lindqvist@pikestreetlegal.example.com", "business_score": 85, "google_rating": 4.1, "review_count": 64, "last_review_date": "2026-10-20", "summary": "Business and employment law for growing companies.", "why_good": "Website mentions billing | Direct email to Elena Lindqvist (Office Administrator) | Active: new Google review 5 days ago | Established: 64 reviews at 4.1★", "watch_out": "", "website_text": "Business and employment law for growing companies. Contracts, entity formation, disputes and compliance. Trust-account billing handled in-house.", "hook": "you handle trust-account billing in-house"}, {"lead_id": "L019", "business_name": "Quinlan Hart Law", "category": "Law firm", "address": "1503 Bellevue Way NE, Bellevue, WA 98004", "website": "https://quinlanhartlaw.example.com", "phone": "(206) 555-0118", "contact_name": "Owen Raman", "contact_title": "Office Administrator", "email": "owen.raman@quinlanhartlaw.example.com", "business_score": 85, "google_rating": 4.2, "review_count": 12, "last_review_date": "2026-08-01", "summary": "Business and employment law for growing companies.", "why_good": "Website mentions billing | Direct email to Owen Raman (Office Administrator) | Active: new Google review 85 days ago", "watch_out": "", "website_text": "Business and employment law for growing companies. Contracts, entity formation, disputes and compliance. Trust-account billing handled in-house.", "hook": "you handle trust-account billing in-house"}, {"lead_id": "L023", "business_name": "Northbound Talent", "category": "Staffing agency", "address": "1510 Pine St, Seattle, WA 98101", "website": "https://northboundtalent.example.com", "phone": "(206) 555-0122", "contact_name": "Hannah Novak", "contact_title": "Branch Manager", "email": "hannah.novak@northboundtalent.example.com", "business_score": 85, "google_rating": 4.7, "review_count": 41, "last_review_date": "2026-09-22", "summary": "Temporary and contract-to-hire staffing for warehouses, offices and events.", "why_good": "Website mentions payroll | Direct email to Hannah Novak (Branch Manager) | Active: new Google review 33 days ago | Established: 41 reviews at 4.7★", "watch_out": "", "website_text": "Temporary and contract-to-hire staffing for warehouses, offices and events. We place 40+ workers a month and run weekly payroll for every placement.", "hook": "you run weekly payroll for every placement, 40+ workers a month"}, {"lead_id": "L026", "business_name": "Fernridge Rentals", "category": "Property management", "address": "447 Pine St, Seattle, WA 98101", "website": "https://fernridgerentals.example.com", "phone": "(206) 555-0125", "contact_name": "Grace Iyer", "contact_title": "Owner", "email": "grace.iyer@fernridgerentals.example.com", "business_score": 85, "google_rating": 3.8, "review_count": 12, "last_review_date": "2026-10-23", "summary": "Managing 60 residential units in King County.", "why_good": "Website mentions owner statements | Direct email to Grace Iyer (Owner) | Active: new Google review 2 days ago", "watch_out": "", "website_text": "Managing 60 residential units in King County. Rent collection, owner statements, maintenance coordination and tenant screening.", "hook": "you send owner statements every month across 60 residential units"}, {"lead_id": "L028", "business_name": "Granite Door Management", "category": "Property management", "address": "897 Pine St, Seattle, WA 98101", "website": "https://granitedoormanagement.example.com", "phone": "(206) 555-0127", "contact_name": "Jordan Brennan", "contact_title": "Owner", "email": "jordan.brennan@granitedoormanagement.example.com", "business_score": 85, "google_rating": 3.6, "review_count": 18, "last_review_date": "2026-10-04", "summary": "Managing 400 residential units in King County.", "why_good": "Website mentions owner statements | Direct email to Jordan Brennan (Owner) | Active: new Google review 21 days ago", "watch_out": "", "website_text": "Managing 400 residential units in King County. Rent collection, owner statements, maintenance coordination and tenant screening.", "hook": "you send owner statements every month across 400 residential units"}, {"lead_id": "L029", "business_name": "Copperleaf Properties", "category": "Property management", "address": "1816 2nd Ave, Seattle, WA 98104", "website": "https://copperleafproperties.example.com", "phone": "(206) 555-0128", "contact_name": "Rosa Fischer", "contact_title": "Owner", "email": "rosa.fischer@copperleafproperties.example.com", "business_score": 85, "google_rating": 3.7, "review_count": 41, "last_review_date": "2026-08-26", "summary": "Managing 400 residential units in King County.", "why_good": "Website mentions owner statements | Direct email to Rosa Fischer (Owner) | Active: new Google review 60 days ago | Established: 41 reviews at 3.7★", "watch_out": "", "website_text": "Managing 400 residential units in King County. Rent collection, owner statements, maintenance coordination and tenant screening.", "hook": "you send owner statements every month across 400 residential units"}, {"lead_id": "L010", "business_name": "Penny Lane Bookkeeping", "category": "Bookkeeping service", "address": "1925 Pine St, Seattle, WA 98101", "website": "https://pennylanebookkeeping.example.com", "phone": "(206) 555-0109", "contact_name": "Daniel Delgado", "contact_title": "Owner", "email": "ddelgado@gmail.com", "business_score": 75, "google_rating": 4.5, "review_count": 41, "last_review_date": "2026-10-23", "summary": "Outsourced bookkeeping for restaurants, retailers and contractors.", "why_good": "Website mentions reconcile and AP/AR | Direct email to Daniel Delgado (Owner) | Active: new Google review 2 days ago | Established: 41 reviews at 4.5★", "watch_out": "Email isn’t on the business domain", "website_text": "Outsourced bookkeeping for restaurants, retailers and contractors. We reconcile accounts, manage AP/AR and send you clean monthly reports.", "hook": "you reconcile accounts and manage AP/AR for restaurants, retailers and contractors"}, {"lead_id": "L016", "business_name": "Marlow & Finch Attorneys", "category": "Law firm", "address": "955 Bellevue Way NE, Bellevue, WA 98004", "website": "https://marlowfinchattorneys.example.com", "phone": "(206) 555-0115", "contact_name": "Daniel Nakamura", "contact_title": "Office Administrator", "email": "daniel.nakamura@marlowfinchattorneys.example.com", "business_score": 75, "google_rating": 3.8, "review_count": 41, "last_review_date": "2026-06-27", "summary": "Business and employment law for growing companies.", "why_good": "Website mentions billing | Direct email to Daniel Nakamura (Office Administrator) | Established: 41 reviews at 3.8★", "watch_out": "", "website_text": "Business and employment law for growing companies. Contracts, entity formation, disputes and compliance. Trust-account billing handled in-house.", "hook": "you handle trust-account billing in-house"}, {"lead_id": "L017", "business_name": "Westlake Law Group", "category": "Law firm", "address": "1589 Pine St, Seattle, WA 98101", "website": "https://westlakelawgroup.example.com", "phone": "(206) 555-0116", "contact_name": "Maya Brennan", "contact_title": "Managing Partner", "email": "mbrennan@westlakelawgroup.example.com", "business_score": 75, "google_rating": 3.7, "review_count": 18, "last_review_date": "2026-06-27", "summary": "Business and employment law for growing companies.", "why_good": "Website mentions billing | Direct email to Maya Brennan (Managing Partner)", "watch_out": "", "website_text": "Business and employment law for growing companies. Contracts, entity formation, disputes and compliance. Trust-account billing handled in-house.", "hook": "you handle trust-account billing in-house"}, {"lead_id": "L020", "business_name": "Crewline Staffing", "category": "Staffing agency", "address": "2324 2nd Ave, Seattle, WA 98104", "website": "https://crewlinestaffing.example.com", "phone": "(206) 555-0119", "contact_name": "Imani Sato", "contact_title": "CEO", "email": "imani.sato@crewlinestaffing.example.com", "business_score": 75, "google_rating": 4.6, "review_count": 27, "last_review_date": "2026-04-18", "summary": "Temporary and contract-to-hire staffing for warehouses, offices and events.", "why_good": "Website mentions payroll | Direct email to Imani Sato (CEO)", "watch_out": "Last review 6 months ago", "website_text": "Temporary and contract-to-hire staffing for warehouses, offices and events. We place 40+ workers a month and run weekly payroll for every placement.", "hook": "you run weekly payroll for every placement, 40+ workers a month"}, {"lead_id": "L012", "business_name": "Rainier Bookkeeping", "category": "Bookkeeping service", "address": "2350 Bellevue Way NE, Bellevue, WA 98004", "website": "https://rainierbookkeeping.example.com", "phone": "(206) 555-0111", "contact_name": "Priya Hayes", "contact_title": "Owner", "email": "priya.hayes@rainierbookkeeping.example.com", "business_score": 65, "google_rating": 4.7, "review_count": 64, "last_review_date": "2025-02-22", "summary": "Outsourced bookkeeping for restaurants, retailers and contractors.", "why_good": "Website mentions reconcile and AP/AR | Direct email to Priya Hayes (Owner) | Established: 64 reviews at 4.7★", "watch_out": "No reviews in 20 months", "website_text": "Outsourced bookkeeping for restaurants, retailers and contractors. We reconcile accounts, manage AP/AR and send you clean monthly reports.", "hook": "you reconcile accounts and manage AP/AR for restaurants, retailers and contractors"}, {"lead_id": "L013", "business_name": "Kept Accounts LLC", "category": "Bookkeeping service", "address": "718 Westlake Ave N, Seattle, WA 98109", "website": "https://keptaccountsllc.example.com", "phone": "(206) 555-0112", "contact_name": "", "contact_title": "", "email": "office@keptaccountsllc.example.com", "business_score": 65, "google_rating": 3.7, "review_count": 12, "last_review_date": "2026-10-11", "summary": "Outsourced bookkeeping for restaurants, retailers and contractors.", "why_good": "Website mentions reconcile and AP/AR | Active: new Google review 14 days ago", "watch_out": "Shared inbox only (office@)", "website_text": "Outsourced bookkeeping for restaurants, retailers and contractors. We reconcile accounts, manage AP/AR and send you clean monthly reports.", "hook": "you reconcile accounts and manage AP/AR for restaurants, retailers and contractors"}, {"lead_id": "L024", "business_name": "Harbor Hire Partners", "category": "Staffing agency", "address": "1483 2nd Ave, Seattle, WA 98104", "website": "https://harborhirepartners.example.com", "phone": "(206) 555-0123", "contact_name": "Jordan Patel", "contact_title": "CEO", "email": "jordan.patel@harborhirepartners.example.com", "business_score": 65, "google_rating": 4.2, "review_count": 210, "last_review_date": "2025-02-22", "summary": "Temporary and contract-to-hire staffing for warehouses, offices and events.", "why_good": "Website mentions payroll | Direct email to Jordan Patel (CEO) | Established: 210 reviews at 4.2★", "watch_out": "No reviews in 20 months", "website_text": "Temporary and contract-to-hire staffing for warehouses, offices and events. We place 40+ workers a month and run weekly payroll for every placement.", "hook": "you run weekly payroll for every placement, 40+ workers a month"}, {"lead_id": "L025", "business_name": "Keystone Property Mgmt", "category": "Property management", "address": "916 Bellevue Way NE, Bellevue, WA 98004", "website": "https://keystonepropertymgmt.example.com", "phone": "(206) 555-0124", "contact_name": "", "contact_title": "", "email": "info@keystonepropertymgmt.example.com", "business_score": 65, "google_rating": 4.2, "review_count": 12, "last_review_date": "2026-09-08", "summary": "Managing 120 residential units in King County.", "why_good": "Website mentions owner statements | Active: new Google review 47 days ago", "watch_out": "Shared inbox only (info@)", "website_text": "Managing 120 residential units in King County. Rent collection, owner statements, maintenance coordination and tenant screening.", "hook": "you send owner statements every month across 120 residential units"}, {"lead_id": "L022", "business_name": "Shiftwise Recruiting", "category": "Staffing agency", "address": "1028 Westlake Ave N, Seattle, WA 98109", "website": "https://shiftwiserecruiting.example.com", "phone": "", "contact_name": "", "contact_title": "", "email": "office@shiftwiserecruiting.example.com", "business_score": 60, "google_rating": 3.9, "review_count": 88, "last_review_date": "2026-09-22", "summary": "Temporary and contract-to-hire staffing for warehouses, offices and events.", "why_good": "Website mentions payroll | Active: new Google review 33 days ago | Established: 88 reviews at 3.9★", "watch_out": "Shared inbox only (office@) | No phone listed", "website_text": "Temporary and contract-to-hire staffing for warehouses, offices and events. We place 40+ workers a month and run weekly payroll for every placement.", "hook": "you run weekly payroll for every placement, 40+ workers a month"}, {"lead_id": "L001", "business_name": "Ledgerline CPAs", "category": "Accounting firm", "address": "485 Westlake Ave N, Seattle, WA 98109", "website": "https://ledgerlinecpas.example.com", "phone": "(206) 555-0100", "contact_name": "", "contact_title": "", "email": "info@ledgerlinecpas.example.com", "business_score": 55, "google_rating": 4.1, "review_count": 3, "last_review_date": "2026-08-01", "summary": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing.", "why_good": "Website mentions reconciliation and monthly close | Active: new Google review 85 days ago", "watch_out": "Shared inbox only (info@) | Only 3 reviews", "website_text": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing. Serving 60 clients across the Puget Sound.", "hook": "your team handles monthly close, bank reconciliation and payroll for 60 clients"}, {"lead_id": "L002", "business_name": "Cedar & Pine Accounting", "category": "Accounting firm", "address": "1085 Pine St, Seattle, WA 98101", "website": "https://cedarpineaccounting.example.com", "phone": "(206) 555-0101", "contact_name": "Priya Kowalski", "contact_title": "Managing Partner", "email": "priya.kowalski@cedarpineaccounting.example.com", "business_score": 55, "google_rating": 4.3, "review_count": 3, "last_review_date": "2025-02-22", "summary": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing.", "why_good": "Website mentions reconciliation and monthly close | Direct email to Priya Kowalski (Managing Partner)", "watch_out": "No reviews in 20 months | Only 3 reviews", "website_text": "Full-service accounting for small businesses: monthly close, bank reconciliation, payroll and year-end tax filing. Serving 400 clients across the Puget Sound.", "hook": "your team handles monthly close, bank reconciliation and payroll for 400 clients"}, {"lead_id": "L009", "business_name": "Tidy Books NW", "category": "Bookkeeping service", "address": "1968 Central Way, Kirkland, WA 98033", "website": "https://tidybooksnw.example.com", "phone": "(206) 555-0108", "contact_name": "", "contact_title": "", "email": "office@tidybooksnw.example.com", "business_score": 55, "google_rating": 3.7, "review_count": 6, "last_review_date": "2026-10-04", "summary": "Outsourced bookkeeping for restaurants, retailers and contractors.", "why_good": "Website mentions reconcile and AP/AR | Active: new Google review 21 days ago", "watch_out": "Shared inbox only (office@) | Only 6 reviews", "website_text": "Outsourced bookkeeping for restaurants, retailers and contractors. We reconcile accounts, manage AP/AR and send you clean monthly reports.", "hook": "you reconcile accounts and manage AP/AR for restaurants, retailers and contractors"}, {"lead_id": "L014", "business_name": "Alder Rowe Law", "category": "Law firm", "address": "116 Pine St, Seattle, WA 98101", "website": "https://alderrowelaw.example.com", "phone": "(206) 555-0113", "contact_name": "Caleb Hayes", "contact_title": "Managing Partner", "email": "caleb.hayes@alderrowelaw.example.com", "business_score": 55, "google_rating": 4.1, "review_count": 4, "last_review_date": "2024-05-08", "summary": "Business and employment law for growing companies.", "why_good": "Website mentions billing | Direct email to Caleb Hayes (Managing Partner)", "watch_out": "No reviews in 30 months | Only 4 reviews", "website_text": "Business and employment law for growing companies. Contracts, entity formation, disputes and compliance. Trust-account billing handled in-house.", "hook": "you handle trust-account billing in-house"}]};
+
+/* ---------- demo businesses ---------- */
+const PERSONAS = {
+  coffee: {
+    icon:'<path d="M4 8h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17M8 3v2M12 3v2"/>',
+    profile:{company:"Ridgeline Coffee Roasters", website:"https://ridgelinecoffee.example.com", email:"mk@ridgelinecoffee.example.com",
+      pitch:"roast small-batch specialty coffee and deliver it within 48 hours of roasting, with free barista training for wholesale partners",
+      proof:"When Harbor Light Café switched to us last spring, their retail bag sales doubled in three months.",
+      cta:"a free tasting box next week", topic:"your coffee", senderName:"MK", senderTitle:"Founder"}
+  },
+  saas: {
+    icon:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    profile:{company:"Flowstack Automation", website:"https://flowstack.example.com", email:"mk@flowstack.example.com",
+      pitch:"automate bank and card reconciliation, invoice matching and month-end close for small finance teams",
+      proof:"One of our customers cut their monthly reconciliation from 2–3 days to under an hour.",
+      cta:"a 15-minute call next week", topic:"month-end reconciliation", senderName:"MK", senderTitle:"Founder"}
+  }
+};
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
+};
+const DAY = 86400000;
+let persona = store.get("ll4-persona", "coffee");
+if (!PERSONAS[persona]) persona = "coffee";
+const K = k => `ll4-${persona}-${k}`;
+let imported, LEADS, profile, drafts, stages;
+function seedStages(rows){
+  const s = {}, now = Date.now(), n = rows.length;
+  rows.forEach((l, i) => {
+    if (i === 0 || i % 4 === 0) return;
+    if (i % 4 === 1) s[l.lead_id] = {stage:"drafted", at:now - i*DAY/3};
+    else if (i % 4 === 2) s[l.lead_id] = {stage:"emailed", at:now - (2 + i % 6)*DAY};
+    else if (i < n/2) s[l.lead_id] = {stage:"replied", at:now - DAY};
+  });
+  return s;
+}
+function loadPersona(){
+  imported = store.get(K("import"), null);
+  LEADS = imported?.rows || DATA[persona];
+  profile = Object.assign({}, PERSONAS[persona].profile, store.get(K("profile"), {}));
+  drafts = store.get(K("drafts"), {});
+  stages = store.get(K("stages"), null) || (imported ? {} : seedStages(DATA[persona]));
+}
+loadPersona();
+
+let viewFilter = null, openId = null, variant = 0, editing = false, sampleFn = null, toolsOK = false, agentCtl = null, aiCtl = null;
+let turns = [], lastExchange = null;
+
+const STAGES = [["new","New"],["drafted","Drafted"],["emailed","Emailed"],["replied","Replied"]];
+const STAGE_NAME = Object.fromEntries(STAGES);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const firstName = n => (n || "").trim().split(/\s+/)[0] || "";
+const cityOf = l => ((l.address || "").split(",")[1] || "").trim();
+const list = s => String(s || "").split(/\s*[|;]\s*/).map(x => x.trim()).filter(Boolean);
+const initials = n => (n || "?").replace(/&/g," ").split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join("");
+const stageOf = id => stages[id]?.stage || "new";
+const score = l => Math.max(0, Math.min(100, Math.round(+l.business_score || 0)));
+const byId = id => LEADS.find(l => String(l.lead_id) === String(id));
+const pluralCat = c => ({"Café":"Cafés","Property management":"Property managers","Staffing agency":"Staffing agencies","Startup office":"Startup offices","Coworking space":"Coworking spaces","Bakery":"Bakeries"})[c] || (c ? c + "s" : "");
+const ago = t => { const d = Math.floor((Date.now() - t) / DAY); return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"; };
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+function setStage(id, stage){ stages[id] = {stage, at:Date.now()}; store.set(K("stages"), stages); }
+
+/* ---------- emails: built from the lead (L) and your profile (Y) ---------- */
+const L = t => t ? `\u27E6L${t}\u27E7` : "", Y = t => t ? `\u27E6Y${t}\u27E7` : "";
+const strip = s => s.replace(/\u27E6[LY]([\s\S]*?)\u27E7/g, "$1");
+const marked = s => esc(s).replace(/\u27E6L([\s\S]*?)\u27E7/g, '<mark class="ml">$1</mark>').replace(/\u27E6Y([\s\S]*?)\u27E7/g, '<mark class="my">$1</mark>');
+function hookOf(l){ return l.hook || (l.summary ? "you’re " + l.summary.charAt(0).toLowerCase() + l.summary.slice(1).replace(/\.$/,"") : "the work you do"); }
+function templates(l){
+  const first = firstName(l.contact_name);
+  const hi = first ? `Hi ${L(first)},` : "Hi there,";
+  const sign = `\n\nBest,\n${profile.senderName}\n${profile.senderTitle ? profile.senderTitle + ", " : ""}${profile.company}`;
+  const hook = hookOf(l), city = cityOf(l);
+  const rev = +l.review_count >= 100 ? ` ${L(`${l.review_count} Google reviews at ${l.google_rating} stars`)} says your customers notice quality, and that’s who we build for.` : "";
+  return [
+    {label:"Short and direct", subject:`Quick idea for ${l.business_name}`,
+     body:`${hi}\n\nI came across ${l.business_name} and noticed ${L(hook)}.\n\nAt ${profile.company}, we ${Y(profile.pitch)}. ${Y(profile.proof)}\n\nWould you be up for ${Y(profile.cta)}?${sign}`},
+    {label:"Lead with results", subject:`${profile.company} for ${l.business_name}`,
+     body:`${hi}\n\n${Y(profile.proof)}\n\nI think ${l.business_name} could see something similar. ${L(cap(hook))}${city ? `, and you’re right in ${L(city)}` : ""}. We ${Y(profile.pitch)}.${rev}\n\nIf it’s useful, I’d love to offer ${Y(profile.cta)}.${sign}`},
+    {label:"Ask a question", subject:`Question about ${profile.topic} at ${l.business_name}`,
+     body:`${hi}\n\nQuick question: who looks after ${Y(profile.topic)} at ${l.business_name}?\n\nI ask because I noticed ${L(hook)}. We ${Y(profile.pitch)}.\n\nWould ${Y(profile.cta)} be helpful? Happy to work around your schedule.${sign}`}
+  ];
+}
+function getDraft(l, v){
+  const s = drafts[l.lead_id]?.[v];
+  if (s) return {...s, edited:true};
+  const t = templates(l)[v];
+  return {to:l.email, subject:t.subject, body:strip(t.body), rich:t.body, edited:false};
+}
+function saveDraft(id, v, d){ (drafts[id] ||= {})[v] = d; store.set(K("drafts"), drafts); if (stageOf(id) === "new") setStage(id, "drafted"); }
+
+/* ---------- sidebar ---------- */
+const CAT_ICON = '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>';
+const ICONS = {
+  "Café":'<path d="M4 8h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/>',
+  "Startup office":'<path d="M4 21V5l8-2v18M12 7l8 2v12M8 9h1M8 13h1M8 17h1M16 13h1M16 17h1"/>',
+  "Coworking space":'<rect x="3" y="10" width="18" height="3" rx="1"/><path d="M6 13v6M18 13v6M8 10V7a4 4 0 0 1 8 0v3"/>',
+  "Bakery":'<path d="M4 15c0-5 4-9 8-9s8 4 8 9H4z"/><path d="M9 9l1 6M15 9l-1 6M3 18h18"/>',
+  "Restaurant":'<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>',
+  "Accounting firm":'<path d="M5 3h14v18H5z"/><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2"/>',
+  "Bookkeeping service":'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/>',
+  "Law firm":'<path d="M12 3v18M5 21h14M6 7h12M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0z"/>',
+  "Staffing agency":'<circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3.2-5 6-5s5.2 1.5 6 5"/><circle cx="17" cy="9" r="2.5"/>',
+  "Property management":'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10M10 20v-5h4v5"/>'
+};
+function views(){
+  return [...new Set(LEADS.map(l => l.category).filter(Boolean))].map(c => ({key:c, label:pluralCat(c), ids:LEADS.filter(l => l.category === c).map(l => String(l.lead_id)), icon:ICONS[c] || CAT_ICON}));
+}
+function renderSide(){
+  $("sellerCard").innerHTML = `<small>Finding customers for</small><b>${esc(profile.company)}</b><p>We ${esc(profile.pitch)}.</p>`;
+  $("views").innerHTML = views().map(v => `<button class="view" type="button" data-view="${esc(v.key)}" aria-pressed="${viewFilter?.key === v.key}"><span class="ic"><svg class="i" viewBox="0 0 24 24">${v.icon}</svg></span><span>${esc(v.label)}<small>${v.ids.length} leads</small></span></button>`).join("");
+  $("personas").innerHTML = Object.entries(PERSONAS).map(([k, p]) => {
+    const co = k === persona ? profile.company : (store.get(`ll4-${k}-profile`, {}).company || p.profile.company);
+    return `<button class="view" type="button" data-persona="${k}" aria-pressed="${k === persona}"><span class="ic"><svg class="i" viewBox="0 0 24 24">${p.icon}</svg></span><span>${esc(co)}<small>${k === persona ? "Active now" : "Switch to this business"}</small></span></button>`;
+  }).join("");
+  $("meAv").textContent = initials(profile.senderName);
+  $("meName").textContent = profile.senderName;
+  $("meCo").textContent = profile.senderTitle ? `${profile.senderTitle}, ${profile.company}` : profile.company;
+}
+
+/* ---------- funnel ---------- */
+function renderFunnel(){
+  const n = LEADS.length || 1;
+  const reached = s => LEADS.filter(l => STAGES.findIndex(x => x[0] === stageOf(l.lead_id)) >= s).length;
+  const vals = [1, reached(1)/n, reached(2)/n, reached(3)/n];
+  $("fBig").textContent = LEADS.length;
+  $("fDelta").textContent = imported ? `leads from ${imported.name}` : "potential customers";
+  const W = 1000, H = 230, cy = H/2, xs = [0, 200, 420, 640, 860, 1000];
+  const hs = [1, ...vals, Math.max(vals[3]*.7, .04)].map(v => Math.max(v, .04));
+  const band = f => {
+    const top = xs.map((x,i) => [x, cy - hs[i]*f*(H/2 - 4)]), bot = xs.map((x,i) => [x, cy + hs[i]*f*(H/2 - 4)]);
+    const curve = pts => pts.slice(1).map((p,i) => { const a = pts[i], mx = (a[0]+p[0])/2; return `C${mx},${a[1]} ${mx},${p[1]} ${p[0]},${p[1]}`; }).join(" ");
+    const rb = bot.slice().reverse();
+    return `M${top[0][0]},${top[0][1]} ${curve(top)} L${rb[0][0]},${rb[0][1]} ${curve(rb)} Z`;
+  };
+  const labels = ["Found","Drafted","Emailed","Replied"];
+  $("funnel").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${band(1)}" fill="var(--b1)"/><path d="${band(.8)}" fill="var(--b2)"/><path d="${band(.55)}" fill="var(--b3)"/></svg>
+    <div class="flabels">${xs.slice(1,5).map((x,i) => `<span class="ln" style="left:${x/10}%"></span><span class="lb" style="left:${x/10}%">${labels[i]}</span><span class="pc" style="left:${x/10}%">${Math.round(vals[i]*100)}%</span>`).join("")}</div>
+    <p class="sr">${labels.map((l,i) => `${l}: ${Math.round(vals[i]*100)}%`).join(", ")}</p>`;
+}
+
+function renderTasks(){
+  const due = LEADS.filter(l => stageOf(l.lead_id) === "emailed").sort((a,b) => stages[a.lead_id].at - stages[b.lead_id].at);
+  $("tBig").textContent = due.length;
+  $("tDelta").textContent = `${due.filter(l => Date.now() - stages[l.lead_id].at >= 3*DAY).length} ready for a nudge`;
+  $("tasks").innerHTML = due.slice(0,3).map(l => `<button class="task" type="button" data-open="${esc(l.lead_id)}"><div class="t"><span>${esc(l.business_name)}</span><small>Emailed ${ago(stages[l.lead_id].at)}</small></div><div class="bar" title="Follow up after 7 days"><i style="width:${Math.min(100, (Date.now() - stages[l.lead_id].at)/DAY/7*100)}%"></i></div></button>`).join("")
+    || `<p class="note">No emails out yet. Send one from any lead and it shows up here.</p>`;
+}
+
+/* ---------- board ---------- */
+const MAIL_ICON = '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+function leadCard(l, pick){
+  const good = list(l.why_good).slice(0,2), bad = list(l.watch_out).slice(0,1), d = getDraft(l, 0), st = stageOf(l.lead_id);
+  const mailLabel = st === "emailed" || st === "replied" ? "Sent: " : d.edited || st === "drafted" ? "Draft: " : "Ready: ";
+  return `<article class="lead${pick ? " pick" : ""}" tabindex="0" role="button" data-open="${esc(l.lead_id)}" aria-label="Open ${esc(l.business_name)} and its email">
+    ${pick ? `<span class="tag">Best match for ${esc(profile.company)}</span>` : ""}
+    <h3>${esc(l.business_name)}</h3>
+    <p>${esc(l.summary || l.website_text || l.category)}</p>
+    ${good.length || bad.length ? `<ul class="why">${good.map(g => `<li>${esc(g)}</li>`).join("")}${bad.map(b => `<li class="w">${esc(b)}</li>`).join("")}</ul>` : ""}
+    <div class="mailline">${MAIL_ICON}<span>${mailLabel}${esc(d.subject)}</span></div>
+    <div class="prog"><span>Lead score</span><span>${score(l)}</span></div>
+    <div class="bar"><i style="width:${score(l)}%"></i></div>
+    <div class="lead-foot"><span class="av">${esc(initials(l.contact_name || l.business_name))}</span><span class="who">${esc(l.contact_name || l.email)}</span></div>
+  </article>`;
+}
+function renderBoard(){
+  const vis = viewFilter ? LEADS.filter(l => viewFilter.ids.has(String(l.lead_id))) : LEADS;
+  $("board").innerHTML = STAGES.map(([k, name]) => {
+    const items = vis.filter(l => stageOf(l.lead_id) === k).sort((a,b) => score(b) - score(a));
+    const pickId = k === "new" && items.length ? items[0].lead_id : null;
+    return `<section class="col" aria-label="${name}"><h2>${name} (${items.length})</h2>${items.map(l => leadCard(l, l.lead_id === pickId)).join("") || `<div class="colempty">No leads here${viewFilter ? " in this view" : ""}.</div>`}</section>`;
+  }).join("");
+  $("filterLine").innerHTML = viewFilter ? `<span class="filterchip">${esc(viewFilter.label)} (${viewFilter.ids.size})<button type="button" id="clearView" aria-label="Show all leads">✕</button></span>` : "";
+  $("clearView")?.addEventListener("click", () => { viewFilter = null; renderAll(); });
+}
+function renderSuggest(){
+  const cats = views(), top = [...LEADS].filter(l => stageOf(l.lead_id) === "new").sort((a,b) => score(b) - score(a))[0];
+  const s = [];
+  if (cats[0]) s.push(`Show ${cats[0].label.toLowerCase()} with a named contact`);
+  s.push("Draft emails for my top 3 new leads", "Who should I follow up with?");
+  if (top) s.push(`Why is ${top.business_name} a good fit for us?`);
+  $("suggest").innerHTML = s.map(t => `<button class="sg" type="button">${esc(t)}</button>`).join("");
+  $("askInput").placeholder = `Ask Leadline to find, sort or email ${profile.company}’s leads`;
+}
+function renderAll(){ renderSide(); renderFunnel(); renderTasks(); renderBoard(); renderSuggest(); }
+
+/* ---------- agent ---------- */
+function compact(l){ return {id:String(l.lead_id), name:l.business_name, type:l.category, city:cityOf(l), contact:l.contact_name || null, title:l.contact_title || null, score:score(l), stage:stageOf(l.lead_id), summary:l.summary || "", why_good:list(l.why_good), watch_out:list(l.watch_out)}; }
+function agentInstructions(){
+  return `You are Leadline, a CRM that one business runs entirely by talking to you. You help this business win customers from its own list of leads.
+THE BUSINESS YOU WORK FOR: ${profile.company}. We ${profile.pitch}. Proof: ${profile.proof} First step we offer: ${profile.cta}. Emails are signed ${profile.senderName}, ${profile.senderTitle}.
+Their ${LEADS.length} leads are businesses that could buy from them. Lead types: ${views().map(v => v.key).join(", ")}. Stages: new, drafted, emailed, replied.
+How to work:
+- Always use tools to read or change data. Never invent leads, people, facts or numbers.
+- To find or filter leads: call list_leads, choose the matching ids, then call show_leads with them and a short label.
+- To write emails: call get_lead, then draft_email. Each email is under 120 words, greets the contact by first name if known, mentions one specific detail from the lead's website text or hook, connects it to what ${profile.company} does, offers ${profile.cta}, and signs off with the sender's name, title and company. Plain text.
+- You cannot send email. The user sends drafts from the lead page. Say so if asked to send.
+- To show a lead to the user, call open_lead.
+- Follow-ups: leads in stage "emailed" for 3 or more days are ready for a nudge.
+Finish with a reply of 1 to 3 short plain sentences. No markdown, no lists.`;
+}
+function step(t){ if (lastExchange){ lastExchange.steps.push(t); renderAgent(); } }
+const TOOLS = [
+  {name:"list_leads", description:"Returns this business's leads as compact JSON (id, name, type, city, contact, title, score, stage, summary, why_good, watch_out, days_in_stage). Optional filters narrow the list.",
+   inputSchema:{type:"object", properties:{type:{type:"string", description:"Exact lead type, e.g. Café"}, stage:{type:"string", enum:["new","drafted","emailed","replied"]}, has_contact_name:{type:"boolean"}, text:{type:"string"}}},
+   execute(i){
+     let r = LEADS;
+     if (i.type) r = r.filter(l => String(l.category).toLowerCase() === String(i.type).toLowerCase());
+     if (i.stage) r = r.filter(l => stageOf(l.lead_id) === i.stage);
+     if (i.has_contact_name === true) r = r.filter(l => l.contact_name);
+     if (i.text) { const t = String(i.text).toLowerCase(); r = r.filter(l => [l.business_name, l.summary, l.address, l.website_text].join(" ").toLowerCase().includes(t)); }
+     step(`Looked through ${r.length} leads`);
+     return r.map(l => ({...compact(l), days_in_stage: stages[l.lead_id] ? Math.floor((Date.now() - stages[l.lead_id].at)/DAY) : null}));
+   }},
+  {name:"show_leads", description:"Filters the pipeline board to exactly these lead ids, with a short label. Returns how many are shown.",
+   inputSchema:{type:"object", properties:{ids:{type:"array", items:{type:"string"}}, label:{type:"string"}}, required:["ids","label"]},
+   execute(i){ const ids = new Set((i.ids || []).map(String).filter(id => byId(id))); viewFilter = {ids, label:String(i.label || "Leadline’s results"), key:null}; renderAll(); step(`Showing ${ids.size} leads`); return {shown:ids.size}; }},
+  {name:"get_lead", description:"Returns full details for one lead, including what its website says and a hook that connects it to this business.",
+   inputSchema:{type:"object", properties:{id:{type:"string"}}, required:["id"]},
+   execute(i){ const l = byId(i.id); if (!l) throw new Error("No lead with that id"); return {...compact(l), email:l.email, website_text:l.website_text || "", hook:l.hook || "", google_rating:l.google_rating, review_count:l.review_count}; }},
+  {name:"draft_email", description:"Saves an email draft for a lead (the user reviews and sends it) and moves the lead to drafted if it was new.",
+   inputSchema:{type:"object", properties:{id:{type:"string"}, subject:{type:"string"}, body:{type:"string"}}, required:["id","subject","body"]},
+   execute(i){ const l = byId(i.id); if (!l) throw new Error("No lead with that id");
+     saveDraft(l.lead_id, 0, {to:l.email, subject:String(i.subject), body:String(i.body), by:"agent"}); renderAll(); step(`Drafted an email to ${l.business_name}`); return {saved:true}; }},
+  {name:"set_stage", description:"Moves a lead to a pipeline stage.",
+   inputSchema:{type:"object", properties:{id:{type:"string"}, stage:{type:"string", enum:["new","drafted","emailed","replied"]}}, required:["id","stage"]},
+   execute(i){ const l = byId(i.id); if (!l) throw new Error("No lead with that id"); if (!STAGE_NAME[i.stage]) throw new Error("Unknown stage"); setStage(l.lead_id, i.stage); renderAll(); step(`Moved ${l.business_name} to ${STAGE_NAME[i.stage]}`); return {ok:true}; }},
+  {name:"open_lead", description:"Opens a lead's page for the user, showing its email.",
+   inputSchema:{type:"object", properties:{id:{type:"string"}}, required:["id"]},
+   execute(i){ const l = byId(i.id); if (!l) throw new Error("No lead with that id"); setTimeout(() => openLead(l.lead_id), 300); step(`Opened ${l.business_name}`); return {ok:true}; }}
+];
+function renderAgent(){
+  const a = $("agent");
+  if (!lastExchange){ a.hidden = true; return; }
+  a.hidden = false;
+  a.innerHTML = `<div class="agent-head"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--blue)"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg><span class="grow">${lastExchange.mode === "basic" ? "Leadline (basic search)" : "Leadline"}</span>
+    ${lastExchange.busy ? `<button class="btn ghost" type="button" id="stopAgent">Stop</button>` : `<button class="btn ghost" type="button" id="hideAgent">Hide</button>`}</div>
+    <div class="turn"><div class="you">${esc(lastExchange.you)}</div><div class="say">${esc(lastExchange.say || (lastExchange.busy ? "Working on it…" : ""))}</div>
+    ${lastExchange.steps.length ? `<div class="steps">${lastExchange.steps.map(s => `<span class="step">${esc(s)}</span>`).join("")}</div>` : ""}</div>`;
+  $("stopAgent")?.addEventListener("click", () => agentCtl?.abort());
+  $("hideAgent")?.addEventListener("click", () => { lastExchange = null; renderAgent(); });
+}
+function basicSearch(q){
+  const t = q.toLowerCase(); let r = LEADS;
+  const v = views().find(x => t.includes(x.key.toLowerCase().slice(0,5)) || t.includes(x.label.toLowerCase().slice(0,5)));
+  if (v) r = r.filter(l => l.category === v.key);
+  if (/named|contact|person/.test(t)) r = r.filter(l => l.contact_name);
+  const st = STAGES.find(([k]) => t.includes(k)); if (st) r = r.filter(l => stageOf(l.lead_id) === st[0]);
+  if (r === LEADS) r = LEADS.filter(l => [l.business_name, l.contact_name, l.summary, l.address].join(" ").toLowerCase().includes(t));
+  viewFilter = {ids:new Set(r.map(l => String(l.lead_id))), label:q, key:null}; renderAll();
+  return r.length ? `Showing ${r.length} matching lead${r.length === 1 ? "" : "s"}. Claude isn’t connected on this page, so I can only filter by keywords right now.` : "No leads matched those words. Claude isn’t connected on this page, so try a business name, type or stage.";
+}
+async function ask(q){
+  q = q.trim(); if (!q) return;
+  $("askInput").value = ""; agentCtl?.abort();
+  if (!sampleFn || !toolsOK){ lastExchange = {you:q, say:basicSearch(q), steps:[], busy:false, mode:"basic"}; renderAgent(); return; }
+  agentCtl = new AbortController();
+  lastExchange = {you:q, say:"", steps:[], busy:true}; $("askBtn").disabled = true; renderAgent();
+  turns.push({role:"user", content:q}); if (turns.length > 10) turns = turns.slice(-10); if (turns[0].role !== "user") turns.shift();
+  try {
+    const {text} = await sampleFn([{role:"user", content:agentInstructions()}, ...turns], {tools:TOOLS, modelTier:"quick", signal:agentCtl.signal,
+      onText:({text}) => { lastExchange.say = text.split(/\n\s*\n/).pop(); renderAgent(); }});
+    const final = text.split(/\n\s*\n/).pop().trim(); turns.push({role:"assistant", content:final}); lastExchange.say = final;
+  } catch(e){
+    turns.pop();
+    if (e.code === "cancelled") lastExchange.say = "Stopped.";
+    else if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","tools_unavailable"].includes(e.code)) { sampleFn = null; lastExchange.say = basicSearch(q); lastExchange.mode = "basic"; }
+    else lastExchange.say = e.code === "rate_limited" ? "I’m getting too many requests right now. Try again in a minute." : "That didn’t finish. Try asking again.";
+  } finally { lastExchange.busy = false; $("askBtn").disabled = false; renderAgent(); }
+}
+
+/* ---------- drawer: lead + email ---------- */
+let lastFocus = null;
+function openDrawer(){ lastFocus = document.activeElement; $("scrim").classList.add("on"); $("drawer").classList.add("on"); $("drawer").setAttribute("aria-hidden","false"); document.body.style.overflow = "hidden"; setTimeout(() => $("dClose").focus(), 60); }
+function closeDrawer(){ aiCtl?.abort(); $("scrim").classList.remove("on"); $("drawer").classList.remove("on"); $("drawer").setAttribute("aria-hidden","true"); document.body.style.overflow = ""; openId = null; renderAll(); lastFocus?.focus?.(); }
+
+function openLead(id){
+  const l = byId(id); if (!l) return;
+  openId = l.lead_id; variant = 0; editing = false;
+  const good = list(l.why_good), bad = list(l.watch_out);
+  const fact = (k, v) => v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : "";
+  $("dTitle").innerHTML = `${esc(l.business_name)}<div class="sub">${esc(l.category)}${cityOf(l) ? ", " + esc(cityOf(l)) : ""}</div>`;
+  $("dBody").innerHTML = `
+    <section class="mail" aria-label="Email to ${esc(l.business_name)}"><div id="mail"></div></section>
+    <div>
+      <section class="panel"><h3>Why they’re a fit</h3>
+        ${good.length ? `<ul class="why2">${good.map(g => `<li>${esc(g)}</li>`).join("")}</ul>` : `<p class="note" style="margin:0">No notes yet.</p>`}
+        ${bad.length ? `<h3 style="margin-top:16px">Watch out for</h3><ul class="why2 w">${bad.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}</section>
+      <section class="panel"><h3>About ${esc(l.business_name)}</h3><p style="margin:0">${esc(l.website_text || l.summary || "No description yet.")}</p>
+        <dl class="facts">${fact("Contact", l.contact_name ? esc(l.contact_name) + (l.contact_title ? ", " + esc(l.contact_title) : "") : "")}${fact("Phone", esc(l.phone))}${fact("Address", esc(l.address))}
+        ${fact("Website", l.website ? `<a href="${esc(l.website)}" target="_blank" rel="noopener">${esc(String(l.website).replace(/^https?:\/\//,""))}</a>` : "")}
+        ${fact("Google reviews", l.review_count ? `${esc(l.google_rating)}★ from ${esc(l.review_count)}` : "")}${fact("Lead score", score(l))}</dl></section>
+    </div>`;
+  renderMail();
+  if (!$("drawer").classList.contains("on")) openDrawer();
+}
+function renderMail(){
+  const l = byId(openId), d = getDraft(l, variant);
+  const tabs = `<div class="seg" role="tablist" aria-label="Email style">${templates(l).map((t,i) => `<button role="tab" type="button" data-v="${i}" aria-selected="${i === variant}">${esc(t.label)}</button>`).join("")}</div>`;
+  const tools = `<div class="mail-tools">${tabs}<button class="btn" type="button" id="editToggle">${editing ? "Done" : "Edit"}</button></div>`;
+  if (editing){
+    $("mail").innerHTML = tools + `<div class="mail-edit">
+      <label class="field"><span>To</span><input id="eTo" type="email" value="${esc(d.to)}"></label>
+      <label class="field"><span>Subject</span><input id="eSubject" value="${esc(d.subject)}"></label>
+      <label class="field"><span>Message</span><textarea id="eBody" rows="14">${esc(d.body)}</textarea></label>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap" id="aiRow"${sampleFn ? "" : " hidden"}><input id="aiAsk" style="flex:1 1 200px;border:1px solid var(--line);background:var(--canvas);border-radius:999px;padding:10px 16px;min-height:46px" placeholder="Tell Leadline what to change, e.g. warmer, shorter"><button class="btn" type="button" id="aiBtn">Rewrite</button></div>
+      <p class="note" id="aiNote">Changes save as you type.</p></div>`;
+    const sync = () => { saveDraft(l.lead_id, variant, {to:$("eTo").value, subject:$("eSubject").value, body:$("eBody").value}); actions(); };
+    ["eTo","eSubject","eBody"].forEach(id => $(id).addEventListener("input", sync));
+    grow($("eBody")); $("eBody").addEventListener("input", e => grow(e.target));
+    $("aiBtn")?.addEventListener("click", rewrite);
+  } else {
+    const from = `${esc(profile.senderName)}${profile.email ? ` &lt;${esc(profile.email)}&gt;` : ""}`;
+    const to = `${l.contact_name ? esc(l.contact_name) + " " : ""}&lt;${esc(d.to)}&gt;`;
+    const body = d.edited ? esc(d.body) : marked(d.rich);
+    const by = d.edited ? (drafts[l.lead_id][variant].by === "agent" ? "Written by Leadline for this business." : "You edited this email.") : "";
+    $("mail").innerHTML = tools + `<dl class="mail-head"><dt>From</dt><dd>${from}</dd><dt>To</dt><dd>${to}</dd><dd class="subj">${esc(d.subject)}</dd></dl>
+      <div class="mail-body">${body}</div>
+      ${d.edited ? `<div class="legend"><span>${by}</span></div>` : `<div class="legend"><span><i style="background:rgba(74,134,232,.3);box-shadow:inset 0 -2px 0 var(--blue)"></i>About ${esc(l.business_name)}, from their website and Google</span><span><i style="background:rgba(229,150,40,.3);box-shadow:inset 0 -2px 0 #E0962A"></i>About you, from your business profile</span></div>`}`;
+  }
+  $("editToggle").addEventListener("click", () => { editing = !editing; renderMail(); });
+  actions();
+}
+function grow(t){ t.style.height = "auto"; t.style.height = Math.max(280, t.scrollHeight + 2) + "px"; }
+function current(){ const l = byId(openId), d = getDraft(l, variant); return {to:$("eTo")?.value ?? d.to, subject:$("eSubject")?.value ?? d.subject, body:$("eBody")?.value ?? d.body}; }
+function mailto(){ const c = current(); return `mailto:${encodeURIComponent(c.to.trim())}?subject=${encodeURIComponent(c.subject)}&body=${encodeURIComponent(c.body)}`; }
+function actions(){
+  const l = byId(openId), has = !!drafts[l.lead_id]?.[variant];
+  $("dActions").innerHTML = `<label><span class="sr">Stage</span><select class="stsel" id="stSel">${STAGES.map(([k,n]) => `<option value="${k}"${k === stageOf(l.lead_id) ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+    ${has ? `<button class="btn ghost" type="button" id="resetBtn">Reset email</button>` : ""}<span class="grow"></span>
+    <button class="btn" type="button" id="copyBtn">Copy</button>
+    <a class="btn dark" id="sendBtn" href="${esc(mailto())}" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>Send from email app</a>`;
+  $("stSel").addEventListener("change", e => { setStage(l.lead_id, e.target.value); toast(`Moved to ${STAGE_NAME[e.target.value]}`); });
+  $("resetBtn")?.addEventListener("click", () => { delete drafts[l.lead_id][variant]; store.set(K("drafts"), drafts); editing = false; renderMail(); toast("Email reset"); });
+  $("copyBtn").addEventListener("click", async () => { const c = current(); try { await navigator.clipboard.writeText(`Subject: ${c.subject}\n\n${c.body}`); toast("Email copied"); } catch(e){ toast("Copy didn’t work. Use Edit and copy the text."); } });
+  $("sendBtn").addEventListener("click", () => { if (stageOf(l.lead_id) !== "replied") setStage(l.lead_id, "emailed"); $("stSel").value = stageOf(l.lead_id); toast("Opening your email app"); });
+}
+async function rewrite(){
+  const l = byId(openId), btn = $("aiBtn"), note = $("aiNote");
+  aiCtl?.abort(); aiCtl = new AbortController(); btn.disabled = true; note.textContent = "Rewriting…";
+  const prompt = `Rewrite this cold email from one business to a potential customer.
+SENDER: ${profile.company}. We ${profile.pitch}. Proof: ${profile.proof} First step we offer: ${profile.cta}. Signs as ${profile.senderName}, ${profile.senderTitle}.
+RECIPIENT: ${l.business_name} (${l.category}, ${cityOf(l)}). Contact: ${l.contact_name || "unknown"} ${l.contact_title || ""}. Their website: ${l.website_text || l.summary || "unknown"}. Connection: ${l.hook || "unknown"}.
+CURRENT DRAFT
+Subject: ${$("eSubject").value}
+${$("eBody").value}
+INSTRUCTION: ${$("aiAsk").value.trim() || "Make it more specific to this business and more natural."}
+Rules: under 120 words; one specific detail about the recipient tied to what the sender does; never invent facts or numbers; one low-pressure ask; plain text; greet by first name if known; sign off with name, title and company.
+Reply with only a JSON object: {"subject": string, "body": string}`;
+  try {
+    const out = await sampleFn.json(prompt, {signal:aiCtl.signal, cache:false});
+    if (!out || typeof out.subject !== "string" || typeof out.body !== "string") throw {code:"invalid_json"};
+    if (String(openId) !== String(l.lead_id)) return;
+    saveDraft(l.lead_id, variant, {to:$("eTo").value, subject:out.subject, body:out.body, by:"agent"}); editing = false; renderMail(); toast("Rewritten. Read it over before sending.");
+  } catch(e){
+    if (e.code === "cancelled") return;
+    if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e.code)) { sampleFn = null; $("aiRow").hidden = true; note.textContent = "Rewriting is turned off for this page."; return; }
+    note.textContent = e.code === "rate_limited" ? "Too many requests. Try again in a minute." : "The rewrite didn’t finish. Try again.";
+  } finally { if ($("aiBtn")) $("aiBtn").disabled = false; }
+}
+
+/* ---------- your business ---------- */
+function openProfile(){
+  openId = null;
+  $("dTitle").innerHTML = `Your business<div class="sub">Every email combines this with what Leadline learns about each lead.</div>`;
+  $("dBody").innerHTML = `<section class="panel" style="grid-column:1/-1;max-width:780px">
+    <div class="two"><label class="field"><span>Company name</span><input id="fCompany" value="${esc(profile.company)}"></label><label class="field"><span>Website</span><input id="fWebsite" value="${esc(profile.website)}"></label></div>
+    <label class="field"><span>What you do: finish the sentence “We…”</span><textarea id="fPitch" style="min-height:80px">${esc(profile.pitch)}</textarea></label>
+    <label class="field"><span>A result one of your customers got</span><textarea id="fProof" style="min-height:70px">${esc(profile.proof)}</textarea></label>
+    <div class="two"><label class="field"><span>First step you offer, e.g. “a free tasting box next week”</span><input id="fCta" value="${esc(profile.cta)}"></label>
+    <label class="field"><span>What a buyer calls what you sell, e.g. “your coffee”</span><input id="fTopic" value="${esc(profile.topic)}"></label></div>
+    <div class="two"><label class="field"><span>Your name</span><input id="fName" value="${esc(profile.senderName)}"></label><label class="field"><span>Your title</span><input id="fTitle" value="${esc(profile.senderTitle)}"></label></div>
+    <label class="field"><span>Your email</span><input id="fEmail" type="email" value="${esc(profile.email)}"></label></section>`;
+  $("dActions").innerHTML = `<button class="btn ghost" type="button" id="resetProfile">Restore sample profile</button><span class="grow"></span><button class="btn dark" type="button" id="saveProfile">Save profile</button>`;
+  $("saveProfile").addEventListener("click", () => {
+    const v = id => $(id).value.trim();
+    profile = {company:v("fCompany") || PERSONAS[persona].profile.company, website:v("fWebsite"), pitch:v("fPitch").replace(/^we\s+/i,"").replace(/\.$/,""), proof:v("fProof"),
+      cta:v("fCta").replace(/\?$/,""), topic:v("fTopic"), senderName:v("fName") || "You", senderTitle:v("fTitle"), email:v("fEmail")};
+    store.set(K("profile"), profile); closeDrawer(); toast("Profile saved. Every email now uses it.");
+  });
+  $("resetProfile").addEventListener("click", () => { profile = {...PERSONAS[persona].profile}; store.set(K("profile"), profile); openProfile(); toast("Sample profile restored"); });
+  openDrawer();
+}
+
+/* ---------- CSV import ---------- */
+function importCSV(file){
+  if (!window.Papa) return toast("The CSV reader didn’t load. Check your connection.");
+  Papa.parse(file, {header:true, skipEmptyLines:true, transformHeader:h => h.trim().toLowerCase().replace(/\s+/g,"_"), complete: res => {
+    const missing = ["business_name","email"].filter(f => !(res.meta.fields || []).includes(f));
+    if (missing.length) return toast(`Missing column: ${missing.join(", ")}`);
+    const rows = res.data.filter(r => r.business_name).map((r,i) => ({...r, lead_id:r.lead_id || "R" + (i+1)}));
+    if (!rows.length) return toast("No rows with a business name found");
+    imported = {name:file.name, rows}; LEADS = rows; stages = {}; viewFilter = null; store.set(K("stages"), stages);
+    toast(store.set(K("import"), imported) ? `Imported ${rows.length} leads for ${profile.company}` : "Imported, but too big to keep after reload");
+    renderAll();
+  }, error: () => toast("That file couldn’t be read as a CSV")});
+}
+
+let toastT;
+function toast(m){ const t = $("toast"); t.textContent = m; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2400); }
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  if ($("side").classList.contains("open") && !e.target.closest("#side") && !e.target.closest("#menuBtn")) { $("side").classList.remove("open"); return; }
+  if (e.target.closest("[data-import]")) { $("side").classList.remove("open"); return $("file").click(); }
+  const go = e.target.closest("[data-go]"); if (go){ $("side").classList.remove("open"); if (go.dataset.go === "profile") return openProfile(); viewFilter = null; renderAll(); return; }
+  const ps = e.target.closest("[data-persona]"); if (ps){ if (ps.dataset.persona !== persona){ persona = ps.dataset.persona; store.set("ll4-persona", persona); loadPersona(); viewFilter = null; turns = []; lastExchange = null; renderAgent(); renderAll(); toast(`Now finding customers for ${profile.company}`); } $("side").classList.remove("open"); return; }
+  const v = e.target.closest("[data-view]"); if (v){ const vw = views().find(x => x.key === v.dataset.view); viewFilter = viewFilter?.key === vw.key ? null : {ids:new Set(vw.ids), label:vw.label, key:vw.key}; $("side").classList.remove("open"); renderAll(); return; }
+  const o = e.target.closest("[data-open]"); if (o) return openLead(o.dataset.open);
+  const sg = e.target.closest(".sg"); if (sg) return ask(sg.textContent);
+  const tab = e.target.closest(".seg button"); if (tab && openId){ variant = +tab.dataset.v; renderMail(); }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape"){ if ($("drawer").classList.contains("on")) closeDrawer(); else $("side").classList.remove("open"); return; }
+  const o = e.target.closest?.("article[data-open]"); if (o && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openLead(o.dataset.open); }
+});
+$("askForm").addEventListener("submit", e => { e.preventDefault(); ask($("askInput").value); });
+$("tAsk").addEventListener("click", () => ask("Who should I follow up with?"));
+$("menuBtn").addEventListener("click", () => $("side").classList.add("open"));
+$("file").addEventListener("change", e => { const f = e.target.files[0]; if (f) importCSV(f); e.target.value = ""; });
+$("dClose").addEventListener("click", closeDrawer);
+$("scrim").addEventListener("click", closeDrawer);
+
+renderAll();
+if (window.claude?.use) window.claude.use("sample").then(async s => {
+  sampleFn = s || null; if (!sampleFn) return;
+  try { toolsOK = !!(await sampleFn.limits()).tools; } catch(e){ toolsOK = false; }
+}).catch(() => {});
+
+</script>
+</body>
+</html>
