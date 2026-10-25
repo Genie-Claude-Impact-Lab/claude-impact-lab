@@ -1,0 +1,10 @@
+{
+  "what_you_sell": "Website design and online booking setup for local service businesses",
+  "customer_types": ["contractor", "plumber", "electrician", "roofing", "remodeling"],
+  "service_area": "Seattle, WA and within 30 miles",
+  "customer_size": "1-20 employees, roughly 10-200 online reviews",
+  "decision_maker": ["owner", "founder", "president", "manager"],
+  "need_signals": "No online booking, outdated website, reviews mentioning hard to reach",
+  "exclusions": "National franchises",
+  "leads_per_week": 20
+}

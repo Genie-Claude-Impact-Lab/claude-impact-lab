@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lead Ranker — who to contact first</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#17223B; --muted:#5A6478; --line:#D3D9E1;
+  --a:#2F7D4F; --b:#A86A12; --c:#6B7280; --rej:#B3412E; --focus:#3A63C4; --field:#F7F9FB;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#121826; --surface:#1B2333; --ink:#E7EBF2; --muted:#9AA4B6; --line:#2E3A50;
+    --a:#5FBF86; --b:#E0A145; --c:#9CA3AF; --rej:#E07A66; --focus:#7FA2F0; --field:#151C2A;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121826; --surface:#1B2333; --ink:#E7EBF2; --muted:#9AA4B6; --line:#2E3A50;
+  --a:#5FBF86; --b:#E0A145; --c:#9CA3AF; --rej:#E07A66; --focus:#7FA2F0; --field:#151C2A;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 18px 80px}
+header h1{font-size:clamp(2.1rem,5.5vw,3.5rem);font-weight:800;line-height:1.02;letter-spacing:-.02em;margin:0 0 12px;max-width:15ch}
+header p{color:var(--muted);max-width:58ch;margin:0 0 32px;font-size:1.08rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px}
+.panel h2{font-size:1.3rem;margin:0 0 4px;display:flex;gap:10px;align-items:baseline}
+.step{font-weight:800;color:var(--muted)}
+.hint{color:var(--muted);margin:0 0 12px;font-size:.97rem}
+textarea{width:100%;font:inherit;font-size:1rem;color:var(--ink);background:var(--field);
+  border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.45}
+#desc{min-height:170px} #list{min-height:250px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button,.filebtn{font:inherit;font-weight:600;border-radius:10px;padding:11px 16px;min-height:44px;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.primary{background:var(--ink);color:var(--surface);border-color:var(--ink);font-size:1.1rem;padding:14px 26px}
+button:disabled{opacity:.55;cursor:progress}
+.filebtn input{display:none}
+.go{margin:22px 0 8px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+#status{color:var(--muted)} .error{color:var(--rej)!important}
+#results{margin-top:26px}
+.understood{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:16px}
+.understood h3{margin:0 0 6px;font-size:1.05rem}
+.understood p{margin:0;color:var(--muted)}
+.summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.pill{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;font-weight:600}
+.pill b{margin-right:6px}
+.lead{display:grid;grid-template-columns:84px 1fr;gap:18px;align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
+.stamp{width:76px;height:76px;border-radius:50%;border:3px solid currentColor;display:grid;place-items:center;text-align:center;
+  font-weight:800;font-size:.95rem;line-height:1.05;transform:rotate(-8deg);padding:6px}
+.tA{color:var(--a)} .tB{color:var(--b)} .tC{color:var(--c)} .tR{color:var(--rej)}
+.lead h3{margin:0;font-size:1.2rem}
+.meta{color:var(--muted);font-size:.93rem;margin:2px 0 10px;overflow-wrap:anywhere}
+.next{font-weight:600;margin:0 0 8px;font-size:1.04rem}
+.reasons{margin:0;padding-left:18px;font-size:.95rem;color:var(--muted)}
+.reasons li{margin:3px 0}
+.draft{margin-top:12px}
+.draft textarea{min-height:220px;font-size:.95rem}
+.score{color:var(--muted);font-size:.85rem;margin-top:8px}
+@media (max-width:560px){.lead{grid-template-columns:1fr}.stamp{width:66px;height:66px;font-size:.85rem}}
+details{margin-top:36px;color:var(--muted)}
+summary{cursor:pointer;font-weight:600;color:var(--ink);min-height:44px;display:flex;align-items:center}
+.overflow{overflow-x:auto}
+table{border-collapse:collapse;font-size:.93rem;margin-top:10px;min-width:440px}
+td,th{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left}
+@media (prefers-reduced-motion:no-preference){.lead{animation:in .35s ease both}}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Know which leads to contact first.</h1>
+  <p>Tell us who your best customers are, paste the businesses you’ve found, and get a ranked list with a next step and a ready-to-send first email for each one.</p>
+</header>
+
+<div class="grid">
+  <section class="panel" aria-labelledby="h-desc">
+    <h2 id="h-desc"><span class="step">1</span> Your best customers</h2>
+    <p class="hint">In your own words: what you sell, who buys it, where they are, how big they are, and who you usually talk to.</p>
+    <textarea id="desc" aria-labelledby="h-desc" placeholder="Example: I build websites for plumbers and electricians around Seattle. Small shops, usually under 20 people. I deal with the owner."></textarea>
+  </section>
+
+  <section class="panel" aria-labelledby="h-list">
+    <h2 id="h-list"><span class="step">2</span> Businesses you found</h2>
+    <p class="hint">Paste anything: text copied from Google Maps, a spreadsheet, or your notes. One business per line or block is easiest.</p>
+    <textarea id="list" aria-labelledby="h-list" spellcheck="false" placeholder="Rainier Plumbing, Seattle, Jane Doe (owner), jane@rainierplumbing.com, 84 reviews, last one 3 weeks ago"></textarea>
+    <div class="row">
+      <label class="filebtn">Add a file<input type="file" id="file" accept=".csv,.txt,text/csv,text/plain"></label>
+      <button type="button" id="sample">Try an example</button>
+    </div>
+  </section>
+</div>
+
+<div class="go">
+  <button class="primary" id="run" type="button">Rank my leads</button>
+  <span id="status" role="status" aria-live="polite"></span>
+</div>
+
+<section id="results" aria-live="polite"></section>
+
+<details>
+  <summary>How the ranking works</summary>
+  <p>A business is skipped if it’s listed as closed or has no email yet. Everyone else gets points, out of 100. Contact now is 70 or more, Worth a try is 50–69, Later is below 50.</p>
+  <div class="overflow"><table>
+    <tr><th>What we look at</th><th>Points</th></tr>
+    <tr><td>A personal email at their company</td><td>30</td></tr>
+    <tr><td>A shared inbox (info@…) or a free account (Gmail…)</td><td>15 or 10</td></tr>
+    <tr><td>You know the owner or manager’s name, or just someone’s name</td><td>20 or 10</td></tr>
+    <tr><td>Customers reviewed them in the last 3 months, or the last year</td><td>20 or 10</td></tr>
+    <tr><td>The kind of business you serve</td><td>15</td></tr>
+    <tr><td>In your area and the right size</td><td>15</td></tr>
+  </table></div>
+  <p>Claude reads your list and judges the fit. Your description and list are sent to Claude only when you press Rank my leads or Write my first email. Nothing is sent to the businesses: you copy the email and send it yourself.</p>
+</details>
+</div>
+
+<script>
+const TIERS={A:{label:"Contact now",stamp:"Contact now",cls:"tA"},B:{label:"Worth a try",stamp:"Worth a try",cls:"tB"},
+  C:{label:"Later",stamp:"Later",cls:"tC"},R:{label:"Skip for now",stamp:"Skip for now",cls:"tR"}};
+const SAMPLE_DESC="I build websites and set up online booking for local trades: plumbers, electricians, roofers and remodelers. Mostly Seattle and within about 30 miles. Small shops, usually 1 to 20 people. I usually deal with the owner.";
+const SAMPLE_LIST=`Rainier Plumbing Co — rainierplumbing.com — Seattle, WA
+Jane Doe (Owner) jane@rainierplumbing.com, 4.7 stars (84 reviews), last review 3 weeks ago
+
+Ballard Electric, Seattle WA, info@ballardelectric.com, 35 reviews, latest review back in June
+
+Eastside Roofing - Bellevue - Mike Lee, office assistant - eastsideroofing@gmail.com - 12 reviews, last one about 11 months ago
+
+Old Town Remodel | Tacoma | Sam Park, founder | sam@oldtownremodel.com | 9 reviews, last review April 2023
+
+Closed Cafe, Seattle — PERMANENTLY CLOSED — ann@closedcafe.com
+
+No Email Builders, Seattle, Tom Ray (owner), 40 reviews, reviewed last month`;
+
+const FREE=new Set(["gmail.com","yahoo.com","hotmail.com","outlook.com","aol.com","icloud.com","live.com","proton.me","protonmail.com","msn.com","comcast.net"]);
+const DISPOSABLE=new Set(["mailinator.com","10minutemail.com","guerrillamail.com","tempmail.com"]);
+const ROLE=new Set(["info","contact","hello","office","admin","sales","support","owner","team","service","help","booking","enquiries","inquiries"]);
+const EMAIL_RE=/^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/;
+const DEFAULT_DM=["owner","founder","co-founder","president","ceo","manager","principal","partner"];
+const $=id=>document.getElementById(id);
+const today=()=>new Date().toISOString().slice(0,10);
+
+let sampleFn=null, downloads=null, last=null;
+(async()=>{
+  if(!window.claude?.use) return;
+  try{sampleFn=await window.claude.use("sample")}catch{}
+  try{downloads=await window.claude.use("downloads")}catch{}
+  if(last) render(last);
+})();
+
+try{const d=localStorage.getItem("leadranker-desc");if(d)$("desc").value=d}catch{}
+
+/* ---------- reading the list ---------- */
+function parseCSV(text){
+  const rows=[];let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch}
+    else if(ch==='"')q=true; else if(ch===','){row.push(cell);cell=""}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell=""}
+    else cell+=ch}
+  if(cell||row.length){row.push(cell);rows.push(row)}
+  const clean=rows.filter(r=>r.some(c=>c.trim()));
+  if(clean.length<2) return [];
+  const head=clean[0].map(h=>h.trim().toLowerCase().replace(/\s+/g,"_"));
+  if(!head.includes("business_name")&&!head.includes("name")) return [];
+  return clean.slice(1).map(r=>{const o=Object.fromEntries(head.map((h,i)=>[h,(r[i]||"").trim()]));
+    if(!o.business_name&&o.name)o.business_name=o.name;return o});
+}
+
+async function readWithClaude(desc,list){
+  const prompt=`You help a small business owner decide which sales leads to contact first. Today is ${today()}.
+
+The owner's description of their best customers:
+"""${desc}"""
+
+The owner's list of businesses. It may be messy: copied from Google Maps, a spreadsheet, or notes.
+"""${list}"""
+
+1. Summarize the owner's ideal customer as: sells, customer_types, area, size, decision_makers. Then write "understood": one friendly sentence starting "You’re looking for" that restates it in plain words.
+2. Extract every business in the list. Use only information that is actually there; use "" when something is missing. Never invent emails, names or websites.
+   For each business give: business_name, website, address, industry, contact_name, contact_title, email,
+   last_review_date (YYYY-MM-DD, worked out from phrases like "3 weeks ago" or "in June" using today's date; "" if unknown),
+   review_count (number or null), rating (number or null), status ("closed" if listed as closed, otherwise "open"),
+   industry_match (is it the kind of business the owner serves, and not something they exclude?),
+   location_size_match (inside their area AND roughly the right size; use review_count as a size hint),
+   decision_maker (is the named contact likely the person who decides? false if no name),
+   note (one short sentence in plain English for a non-technical owner, about fit; no jargon).
+
+Return ONLY JSON in this shape:
+{"profile":{"sells":"","customer_types":[],"area":"","size":"","decision_makers":[]},"understood":"","leads":[{...}]}`;
+  const out=await sampleFn.json(prompt,{modelTier:"default"});
+  if(!out||!Array.isArray(out.leads)) throw new Error("shape");
+  return out;
+}
+
+function readWithoutClaude(desc,list){
+  const leads=parseCSV(list);
+  if(!leads.length) return null;
+  const d=desc.toLowerCase();
+  leads.forEach(l=>{
+    const words=(l.industry||"").toLowerCase().split(/[\s,/]+/).filter(w=>w.length>3);
+    l.industry_match=words.some(w=>d.includes(w)||d.includes(w.replace(/s$/,"")));
+    const city=(l.address||"").split(",")[0].trim().toLowerCase();
+    l.location_size_match=!!city&&d.includes(city);
+    l.decision_maker=!!l.contact_name&&DEFAULT_DM.some(t=>(l.contact_title||"").toLowerCase().includes(t));
+    l.note="";
+  });
+  return {profile:{sells:desc},understood:"",leads};
+}
+
+/* ---------- scoring ---------- */
+function domainOf(w){try{return new URL(/^https?:/.test(w)?w:"https://"+w).hostname.replace(/^www\./,"").toLowerCase()}catch{return ""}}
+function daysSince(d){const t=Date.parse(d);return isNaN(t)?null:Math.floor((Date.now()-t)/864e5)}
+const first=n=>(n||"").trim().split(/\s+/)[0];
+
+function score(l){
+  const why=[];let pts=0,skip=null;
+  if((l.status||"").toLowerCase().includes("closed")) skip="It’s listed as closed.";
+  const email=(l.email||"").trim();
+  if(!skip&&!EMAIL_RE.test(email)) skip="No email yet. Check their website or give them a call.";
+  let emailType="";
+  if(!skip){
+    const [local,dom]=email.toLowerCase().split("@");
+    if(DISPOSABLE.has(dom)) skip="That email address looks temporary.";
+    else{
+      emailType=FREE.has(dom)?"free":ROLE.has(local)?"shared":(domainOf(l.website||"")===dom||!l.website?"personal":"shared");
+      if(emailType==="personal"&&!l.website&&!l.contact_name) emailType="shared";
+      pts+={personal:30,shared:15,free:10}[emailType];
+      why.push({personal:"Has a personal email at their company.",shared:"Only a shared inbox (like info@), so it may not reach the owner.",free:"Uses a free email account (like Gmail)."}[emailType]);
+    }
+  }
+  if(l.contact_name){
+    pts+=l.decision_maker?20:10;
+    why.push(l.decision_maker?`You know who to ask for: ${l.contact_name}${l.contact_title?", "+l.contact_title.toLowerCase():""}.`
+      :`You have a name (${l.contact_name}), but they may not make the decision.`);
+  } else why.push("No contact name yet.");
+  const age=daysSince(l.last_review_date);
+  if(age!==null&&age<=90){pts+=20;why.push("Customers reviewed them in the last 3 months, so they’re active.")}
+  else if(age!==null&&age<=365){pts+=10;why.push("Reviewed in the last year.")}
+  else why.push("No recent reviews, so they may be less active.");
+  if(l.industry_match){pts+=15;why.push("The kind of business you serve.")} else why.push("Not clearly the kind of business you serve.");
+  if(l.location_size_match){pts+=15;why.push("In your area and about the right size.")} else why.push("May be outside your area or size.");
+  if(l.note) why.push(l.note);
+  const tier=skip?"R":pts>=70?"A":pts>=50?"B":"C";
+  const who=l.contact_name?first(l.contact_name):"them";
+  const next={A:`Email ${who} first${email?" at "+email:""}.`,B:`Worth a short email to ${who} this week.`,
+    C:"Save for later. Focus on your Contact now list first.",R:skip}[tier];
+  return {...l,email_type:emailType,score:skip?0:pts,tier,next,why:skip?[skip]:why};
+}
+
+/* ---------- run ---------- */
+async function run(){
+  const desc=$("desc").value.trim(),list=$("list").value.trim();
+  if(!desc){status("Start by describing your best customers in box 1.",true);$("desc").focus();return}
+  if(!list){status("Paste the businesses you’ve found into box 2, or try the example.",true);$("list").focus();return}
+  try{localStorage.setItem("leadranker-desc",desc)}catch{}
+  $("run").disabled=true;
+  let data=null,usedClaude=false;
+  if(sampleFn){
+    status("Reading your list and ranking it. This takes about 20 seconds…");
+    try{data=await readWithClaude(desc,list);usedClaude=true}
+    catch(e){status(e?.code==="rate_limited"?"Too many requests right now. Wait a minute and try again.":"Claude couldn’t read the list this time.",true)}
+  }
+  if(!data) data=readWithoutClaude(desc,list);
+  $("run").disabled=false;
+  if(!data){status(sampleFn?"Try again, or paste a spreadsheet with a header row (business_name, email, …).":"To read a messy list, open this page on claude.ai. Here, paste a spreadsheet with a header row: business_name, address, industry, contact_name, contact_title, email, last_review_date.",true);return}
+  if(!data.leads.length){status("No businesses found in that list. Check box 2 and try again.",true);return}
+  const leads=data.leads.map(score).sort((a,b)=>b.score-a.score);
+  last={...data,leads,usedClaude,desc};
+  status(usedClaude?"":"Ranked with simple word matching. Open on claude.ai for smarter results.");
+  render(last);
+  $("results").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"});
+}
+function status(msg,err){const s=$("status");s.textContent=msg;s.className=err?"error":""}
+
+/* ---------- first email ---------- */
+function templateEmail(l,desc){
+  const hi=l.contact_name?`Hi ${first(l.contact_name)},`:"Hi there,";
+  return {subject:`A quick idea for ${l.business_name}`,body:`${hi}
+
+I came across ${l.business_name}${l.address?" in "+l.address.split(",")[0]:""} and wanted to reach out. [One sentence about what you do and how it helps a business like theirs.]
+
+Would you be open to a 15-minute call next week?
+
+[Your name]
+[Your business]
+[Your business address]
+
+If you’d rather not hear from me, just reply “no thanks” and I won’t email again.`};
+}
+async function writeEmail(l,box,btn){
+  btn.disabled=true;btn.textContent="Writing…";
+  let mail=null;
+  if(sampleFn){
+    try{
+      mail=await sampleFn.json(`Write a short first sales email from a small business owner to a potential customer.
+About the sender (their own words): """${last.desc}"""
+The business they're writing to: ${JSON.stringify({business_name:l.business_name,contact_name:l.contact_name,contact_title:l.contact_title,address:l.address,industry:l.industry,review_count:l.review_count,rating:l.rating,last_review_date:l.last_review_date,website:l.website})}
+Rules: under 120 words; warm, plain, specific to this business; mention one real detail from the data above (never invent facts); one clear ask (a short call or reply); greet by first name if known.
+End with these lines exactly:
+[Your name]
+[Your business]
+[Your business address]
+
+If you’d rather not hear from me, just reply “no thanks” and I won’t email again.
+Return ONLY JSON: {"subject":"","body":""}`,{modelTier:"default"});
+      if(!mail?.body) mail=null;
+    }catch{}
+  }
+  if(!mail) mail=templateEmail(l,last.desc);
+  box.replaceChildren();
+  const ta=document.createElement("textarea");ta.value=`To: ${l.email}\nSubject: ${mail.subject}\n\n${mail.body}`;
+  ta.setAttribute("aria-label","Draft email to "+l.business_name);
+  const row=document.createElement("div");row.className="row";
+  const copy=document.createElement("button");copy.type="button";copy.textContent="Copy email";
+  const note=document.createElement("span");note.style.color="var(--muted)";
+  copy.onclick=async()=>{try{await navigator.clipboard.writeText(ta.value);note.textContent="Copied. Paste it into your email app."}
+    catch{ta.focus();ta.select();note.textContent="Selected. Press Ctrl+C (or ⌘C) to copy."}};
+  row.append(copy,note);
+  const tip=document.createElement("p");tip.className="hint";tip.style.marginTop="8px";
+  tip.textContent="Fill in the parts in [brackets] before sending.";
+  box.append(ta,tip,row);
+  btn.textContent="Write it again";btn.disabled=false;
+}
+
+/* ---------- render ---------- */
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function render(d){
+  const box=$("results");box.replaceChildren();
+  if(d.understood){const u=el("div","understood");u.append(el("h3",null,"What we understood"),el("p",null,d.understood+" If that’s not right, edit box 1 and rank again."));box.append(u)}
+  const counts={A:0,B:0,C:0,R:0};d.leads.forEach(l=>counts[l.tier]++);
+  const sum=el("div","summary");
+  ["A","B","C","R"].forEach(k=>{const p=el("span","pill "+TIERS[k].cls);const b=el("b",null,counts[k]);p.append(b,TIERS[k].label);sum.append(p)});
+  if(downloads){const dl=el("button",null,"Save as spreadsheet");dl.type="button";
+    dl.onclick=async()=>{const rows=d.leads.map(l=>({business:l.business_name,priority:TIERS[l.tier].label,next_step:l.next,contact:l.contact_name,title:l.contact_title,email:l.email,website:l.website,address:l.address,score:l.score,why:l.why.join(" ")}));
+      const keys=Object.keys(rows[0]);const esc=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+      try{await downloads.save({filename:"ranked_leads.csv",data:[keys.join(","),...rows.map(r=>keys.map(k=>esc(r[k])).join(","))].join("\n")})}catch{}};
+    sum.append(dl)}
+  box.append(sum);
+  d.leads.forEach(l=>{
+    const t=TIERS[l.tier];const card=el("article","lead");
+    const st=el("div","stamp "+t.cls,t.stamp);
+    const mid=el("div");
+    mid.append(el("h3",null,l.business_name||"Unnamed business"));
+    mid.append(el("p","meta",[l.contact_name&&(l.contact_name+(l.contact_title?", "+l.contact_title:"")),l.email,l.address].filter(Boolean).join("  |  ")));
+    mid.append(el("p","next",l.next));
+    const ul=el("ul","reasons");l.why.forEach(w=>ul.append(el("li",null,w)));mid.append(ul);
+    if(l.tier==="A"||l.tier==="B"){
+      const draft=el("div","draft");const btn=el("button",null,"Write my first email");btn.type="button";
+      btn.onclick=()=>writeEmail(l,draft,btn);
+      const r=el("div","row");r.append(btn);mid.append(r,draft);
+    }
+    if(l.tier!=="R") mid.append(el("p","score",`Score: ${l.score} of 100`));
+    card.append(st,mid);box.append(card);
+  });
+}
+
+$("sample").onclick=()=>{$("desc").value=SAMPLE_DESC;$("list").value=SAMPLE_LIST;status("Example added. Press Rank my leads.")};
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{$("list").value=r.result;status(`Added ${f.name}.`)};r.readAsText(f)};
+$("run").onclick=run;
+</script>
+</body>
+</html>

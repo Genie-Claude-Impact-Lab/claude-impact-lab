@@ -1,0 +1,5 @@
+business_name,website,address,industry,contact_name,contact_title,email,last_review_date,review_count,rating,status
+Rainier Plumbing Co,https://rainierplumbing.com,"Seattle, WA",plumber,Jane Doe,Owner,jane@rainierplumbing.com,2026-10-02,84,4.7,open
+Ballard Electric,https://ballardelectric.com,"Seattle, WA",electrician,,,info@ballardelectric.com,2026-06-15,35,4.5,open
+Old Town Remodel,https://oldtownremodel.com,"Tacoma, WA",remodeling,Sam Park,Founder,sam@oldtownremodel.com,2023-04-01,9,3.9,open
+Closed Cafe,https://closedcafe.com,"Seattle, WA",restaurant,Ann Kim,Owner,ann@closedcafe.com,2024-01-10,50,4.0,permanently closed
