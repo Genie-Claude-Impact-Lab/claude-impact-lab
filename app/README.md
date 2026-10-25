@@ -61,7 +61,7 @@ You need **Python 3.10 or newer**. Check with `python3 --version`. If it's older
 2. **Find leads.** About 30 to 60 seconds. You see each step as it happens.
 3. **Work your pipeline.** Leads with an email land on the board, best first, with a tier (Contact now, Worth a try, Later), the next step and the reasons. Open one to see the facts, the email check, the pages we read, and a draft email in three styles. **Write with Claude** drafts one from what we found, and **Edit** lets you change it or ask for a rewrite. **Send from email app** opens your own email; Leadline never sends anything itself.
 4. **Need an email** lists real businesses with no email on their website. Call them, paste the email you get, and we check it and move them onto the board.
-5. **Your business** holds your company, pitch, a result you're proud of, your offer, your address (the law requires it in sales emails) and emails you've written before, so drafts sound like you.
+5. **Your business profile** is set up once: what you sell, the problem you solve, your ideal and best customers, who you talk to, a result you're proud of, your offer and your address (the law requires it in sales emails). Add documents (PDF, Word, saved emails, text) to give it more context: documents become background for your emails, past emails set their voice, and with a Claude key we read them to fill in empty questions. You can keep several businesses and switch between them; **Settings** shows which keys are connected.
 
 Your searches, drafts and profile are saved in your browser.
 

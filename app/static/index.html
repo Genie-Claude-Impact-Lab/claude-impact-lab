@@ -280,6 +280,16 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
 .h3{font-size:20px;font-weight:400;margin:0 0 6px;letter-spacing:-.01em}
 .pill-in{border:1px solid var(--line);background:var(--canvas);border-radius:999px;padding:10px 16px;min-height:46px;font-size:15px;min-width:0}
 .find .btn:not(.dark):not(.ghost){background:transparent}
+.drop{display:grid;justify-items:center;gap:6px;text-align:center;border:1.5px dashed var(--line);border-radius:22px;padding:26px 18px;margin-top:14px;cursor:pointer;background:var(--canvas)}
+.drop:hover,.drop.over{border-color:var(--blue)}
+.drop svg{width:28px;height:28px;color:var(--blue)}
+.drop b{font-weight:500;font-size:16px}
+.drop span{color:var(--muted);font-size:13.5px}
+.mats{display:grid;gap:8px;margin-top:14px}
+.mat{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:var(--canvas);border-radius:18px;padding:10px 12px 10px 16px}
+.mat b{display:block;font-weight:500;overflow-wrap:anywhere}
+.mat span{font-size:13px;color:var(--muted)}
+@media (max-width:600px){ .mat{grid-template-columns:1fr} }
 .warnbox{background:rgba(184,101,12,.12);border-radius:14px;padding:10px 14px;margin:0 26px 18px;font-size:14px}
 </style>
 </head>
@@ -310,7 +320,7 @@ mark.my{background:rgba(229,150,40,.16);box-shadow:inset 0 -2px 0 #E0962A}
         <input id="askInput" autocomplete="off" placeholder="Ask Leadline to find, sort or email leads">
         <button class="btn dark" type="submit" id="askBtn">Ask</button>
       </form>
-      <button class="circle" type="button" data-import aria-label="Import leads CSV" title="Import leads CSV"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
+      <button class="circle" type="button" id="topImport" data-import aria-label="Import a lead list (CSV)" title="Import a lead list (CSV)"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
     </div>
     <div class="suggest" id="suggest"></div>
     <section class="agent" id="agent" hidden aria-live="polite"></section>
@@ -578,7 +588,7 @@ function renderSuggest(){
 }
 function showView(){
   $("findView").hidden = view !== "find"; $("bizView").hidden = view !== "business"; $("setView").hidden = view !== "settings"; if (view === "settings") renderSettings(); $("boardView").hidden = view !== "board";
-  $("suggest").hidden = $("askForm").hidden = view !== "board";
+  $("suggest").hidden = $("askForm").hidden = $("topImport").hidden = view !== "board";
   $("sampleBanner").innerHTML = !isSample(persona) || view === "settings" ? "" : `<div class="banner"><span>You’re looking at a sample business, <b>${esc(profile.company)}</b>. Nothing here is real.</span>
     <button class="btn dark" type="button" data-persona="${esc(OWN[0])}">Switch to your business</button></div>`;
   document.querySelectorAll(".nav[data-go]").forEach(b => b.dataset.go === view ? b.setAttribute("aria-current","page") : b.removeAttribute("aria-current"));
@@ -790,11 +800,11 @@ function strength(){
     [words(p.problem) >= 6 ? 14 : words(p.problem) ? 5 : 0, 14, "say what problem you solve for them"],
     [words(p.sell) >= 4 ? 10 : words(p.sell) ? 4 : 0, 10, "say specifically what you sell"],
     [words(p.best_customers) ? 10 : 0, 10, "name a few of your best customers"],
-    [p.read_from ? 8 : 0, 8, "add your website or a document so we can read about you"],
+    [p.read_from || (p.materials || []).some(m => m.kind === "business") ? 8 : 0, 8, "add your website or a document about your business"],
     [roles ? 4 : 0, 4, "say who you usually talk to"],
     [p.company && p.pitch ? 10 : p.company || p.pitch ? 5 : 0, 10, "add your company name and what you do"],
     [p.proof ? 10 : 0, 10, "add a result a customer got"],
-    [words(p.samples) >= 30 ? 10 : words(p.samples) ? 4 : 0, 10, "paste a few emails you’ve written"],
+    [(() => { const w = words(p.samples) + (p.materials || []).filter(m => m.kind === "email").reduce((n, m) => n + words(m.text), 0); return w >= 30 ? 10 : w ? 4 : 0; })(), 10, "add a few emails you’ve written"],
     [p.cta ? 5 : 0, 5, "say what first step you offer"],
     [p.address ? 5 : 0, 5, "add your business address"]];
   const score = parts.reduce((s, x) => s + x[0], 0);
@@ -836,13 +846,21 @@ function renderBusiness(){
     <section class="panel"><h2>Your business profile</h2>
       <p class="lede">Set this up once. We use it to judge which businesses are a good fit and to write emails that sound like you. Each search can then look in different places for different kinds of businesses.</p>
       <div id="bStrength" style="margin-top:16px">${strengthHTML()}</div></section>
-    <section class="panel"><h3 class="h3">Start with what you already have</h3>
-      <p class="lede">Paste your website or add a file, like a brochure, a pitch or emails you’ve sent. We read it and fill in the questions below, and you can change anything afterwards.</p>
-      <div class="go"><input id="bUrl" class="pill-in" placeholder="yourbusiness.com" value="${esc(profile.website || "")}" style="flex:1 1 220px">
-        <button class="btn dark" type="button" id="bRead"${SERVER.claude ? "" : " disabled"}>Read my website</button>
-        <label class="btn" style="cursor:pointer">Add a file<input id="bFile" type="file" accept=".txt,.md,.eml,.csv,.html,text/plain" class="sr"></label></div>
-      <p class="note">${SERVER.claude ? "Text files work best (.txt, .md, .eml). We never share what you add." : "Reading your website or files needs a Claude key. Files you add are kept as sample emails."}</p>
-      ${profile.read_from ? `<p class="note">Read from: ${esc(profile.read_from)}</p>` : ""}<div id="bErr"></div></section>
+    <section class="panel"><h3 class="h3">Add anything that tells us about your business</h3>
+      <p class="lede">Brochures, pitch decks saved as PDF, price sheets, case studies, and emails you’ve sent. The more we know, the better your matches and the more your emails sound like you.</p>
+      <label class="drop" id="bDrop"><input id="bFile" type="file" multiple accept=".pdf,.docx,.txt,.md,.eml,.html,.htm,.csv,text/plain" class="sr">
+        <svg class="i" viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <b>Drop files here or choose files</b><span>PDF, Word (.docx), saved emails (.eml), text or web pages. Up to 10 MB each.</span></label>
+      ${(profile.materials || []).length ? `<div class="mats">${profile.materials.map(m => `<div class="mat"><div><b>${esc(m.name)}</b><span>About ${words(m.text).toLocaleString()} words</span></div>
+        <label class="sr" for="mk-${m.id}">What is ${esc(m.name)}?</label><select class="stsel" id="mk-${m.id}" data-mat-kind="${m.id}">
+          <option value="business"${m.kind === "business" ? " selected" : ""}>About my business</option><option value="email"${m.kind === "email" ? " selected" : ""}>An email I wrote</option></select>
+        <button class="btn ghost" type="button" data-mat-remove="${m.id}" aria-label="Remove ${esc(m.name)}">Remove</button></div>`).join("")}</div>` : ""}
+      <p class="note">${SERVER.claude ? "We read what you add and fill in any empty questions below. Documents also give your emails background, and your past emails set their voice."
+        : "Without a Claude key we can’t read files to fill in the questions, but your past emails still set the voice of your drafts once Claude is connected."}</p>
+      <span class="qlabel">Or paste your website</span>
+      <div class="go" style="margin-top:0"><input id="bUrl" class="pill-in" placeholder="yourbusiness.com" value="${esc(profile.website || "")}" style="flex:1 1 220px">
+        <button class="btn dark" type="button" id="bRead"${SERVER.claude ? "" : " disabled"}>Read my website</button></div>
+      ${profile.read_from ? `<p class="note">Read so far: ${esc(profile.read_from)}</p>` : ""}<div id="bErr"></div></section>
     <section class="panel"><h3 class="h3">Who you are and who you sell to</h3>
       <p class="lede">This decides which businesses we pick. The more specific, the better the matches.</p>
       <div class="two">${field("bCompany", "Company name", "company")}${field("bWebsite", "Website", "website")}</div>
@@ -882,10 +900,11 @@ async function readFromSource(body, btn, label){
   const before = btn.textContent; btn.disabled = true; btn.textContent = "Reading…"; $("bErr").innerHTML = "";
   try {
     const d = await post("/api/read-business", body);
-    Object.entries(d).forEach(([k, v]) => { if (v) profile[k] = k === "pitch" ? v.replace(/^we\s+/i, "") : v; });
+    let filled = 0;
+    Object.entries(d).forEach(([k, v]) => { if (v && !(profile[k] || "").trim()) { profile[k] = k === "pitch" ? v.replace(/^we\s+/i, "") : v; filled++; } });
     if (body.url) profile.website = profile.website || body.url;
     profile.read_from = [profile.read_from, label].filter(Boolean).join(", ");
-    store.set(K("profile"), profile); renderBusiness(); renderSide(); toast("Filled in from what you added. Check it and change anything that’s off.");
+    store.set(K("profile"), profile); renderBusiness(); renderSide(); toast(filled ? `Filled in ${filled} empty question${filled === 1 ? "" : "s"}. Check them and change anything that’s off.` : "Read it. Your answers were already filled in, so we kept them.");
   } catch(e){ btn.disabled = false; btn.textContent = before; $("bErr").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 function startFresh(){
@@ -908,18 +927,53 @@ document.addEventListener("click", e => {
   if (e.target.closest("#bRestore")){ profile = {...def(persona).profile}; store.set(K("profile"), profile); renderBusiness(); renderSide(); return toast("Sample profile restored."); }
 });
 document.addEventListener("input", e => { if (e.target.closest("#bizView") && e.target.dataset.key) { readBusiness(); refreshStrength(); } });
-document.addEventListener("change", async e => {
-  if (e.target.id !== "bFile") return;
-  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  let text = "";
-  try { text = (await f.text()).slice(0, 12000); } catch(err){ return toast("That file couldn’t be read. Try a plain text file."); }
+const TEXT_FILE = /\.(txt|md|csv)$/i;
+function fileToBase64(f){
+  return new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = fail; r.readAsDataURL(f); });
+}
+async function addFiles(files){
   readBusiness();
-  if (/\.eml$/i.test(f.name) || /^(subject|from|to):/im.test(text)) profile.samples = ((profile.samples || "") + "\n\n" + text).trim().slice(0, 8000);
-  store.set(K("profile"), profile);
-  if (SERVER.claude) return readFromSource({text}, e.target.closest("label") || $("bRead"), f.name);
-  if (!profile.samples?.includes(text.slice(0, 200))) profile.samples = ((profile.samples || "") + "\n\n" + text).trim().slice(0, 8000);
-  store.set(K("profile"), profile); renderBusiness(); renderSide(); toast("Added to your sample emails.");
+  const added = [], errors = [];
+  for (const f of files){
+    try {
+      let text, isEmail;
+      if (TEXT_FILE.test(f.name)) { text = (await f.text()).slice(0, 20000); isEmail = /^(subject|from|to):/im.test(text) || /^\s*(hi|hello|hey|dear)\b/i.test(text); }
+      else { const d = await post("/api/extract", {name:f.name, data:await fileToBase64(f)}); text = d.text; isEmail = d.is_email; }
+      if (!text.trim()) throw new Error(`We couldn’t find any text in ${f.name}.`);
+      added.push({id:Date.now().toString(36) + added.length, name:f.name, kind:isEmail ? "email" : "business", text});
+    } catch(err){ errors.push(err.message); }
+  }
+  profile.materials = [...(profile.materials || []), ...added];
+  if (!store.set(K("profile"), profile)) { profile.materials = profile.materials.slice(0, -added.length); errors.push("That’s more than this browser can keep. Try fewer or smaller files."); added.length = 0; }
+  renderBusiness(); refreshStrength();
+  if (errors.length) $("bErr").innerHTML = `<div class="err">${esc(errors.join(" "))}</div>`;
+  if (!added.length) return;
+  toast(`Added ${added.length} file${added.length === 1 ? "" : "s"}.`);
+  const about = added.filter(m => m.kind === "business").map(m => m.text).join("\n\n").slice(0, 10000);
+  if (SERVER.claude && about) readFromSource({text:about}, $("bRead"), added.map(m => m.name).join(", "));
+}
+// What the email writer gets: the profile plus documents as background and past emails as voice.
+function senderFor(){
+  const mats = profile.materials || [];
+  return {...profile, materials:undefined,
+    samples:[profile.samples, ...mats.filter(m => m.kind === "email").map(m => m.text)].filter(Boolean).join("\n\n").slice(0, 6000),
+    about:mats.filter(m => m.kind === "business").map(m => m.text).join("\n\n").slice(0, 6000)};
+}
+document.addEventListener("change", e => {
+  if (e.target.id === "bFile"){ const fs = [...e.target.files]; e.target.value = ""; if (fs.length) addFiles(fs); return; }
+  const k = e.target.closest("[data-mat-kind]");
+  if (k){ const m = (profile.materials || []).find(x => x.id === k.dataset.matKind); if (m){ m.kind = k.value; store.set(K("profile"), profile); refreshStrength(); } }
 });
+document.addEventListener("click", e => {
+  const rm = e.target.closest("[data-mat-remove]"); if (!rm) return;
+  profile.materials = (profile.materials || []).filter(m => m.id !== rm.dataset.matRemove);
+  store.set(K("profile"), profile); renderBusiness(); refreshStrength();
+});
+["dragover","dragleave","drop"].forEach(t => document.addEventListener(t, e => {
+  const d = e.target.closest?.("#bDrop"); if (!d) return;
+  e.preventDefault(); d.classList.toggle("over", t === "dragover");
+  if (t === "drop" && e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]);
+}));
 
 /* ---------- businesses and settings ---------- */
 function switchTo(id, toView){
@@ -1009,7 +1063,7 @@ async function aiWrite(){
   const l = byId(openId), btn = $("aiWrite"); if (!l) return;
   btn.disabled = true; btn.textContent = "Writing…";
   try {
-    const out = await post("/api/draft", {sender:profile, lead:l});
+    const out = await post("/api/draft", {sender:senderFor(), lead:l});
     if (String(openId) !== String(l.lead_id)) return;
     saveDraft(l.lead_id, variant, {to:l.email, subject:out.subject, body:out.body, by:"agent", warnings:out.warnings || []});
     editing = false; renderMail(); toast("Written from what we found. Read it over before sending.");
@@ -1019,7 +1073,7 @@ async function rewriteOnServer(){
   const l = byId(openId), btn = $("aiBtn"), note = $("aiNote"); if (!l) return;
   btn.disabled = true; note.textContent = "Rewriting…";
   try {
-    const out = await post("/api/draft", {sender:profile, lead:l, rewrite:true, instruction:$("aiAsk").value.trim(),
+    const out = await post("/api/draft", {sender:senderFor(), lead:l, rewrite:true, instruction:$("aiAsk").value.trim(),
       current:{subject:$("eSubject").value, body:$("eBody").value}});
     if (String(openId) !== String(l.lead_id)) return;
     saveDraft(l.lead_id, variant, {to:$("eTo").value, subject:out.subject, body:out.body, by:"agent", warnings:out.warnings || []});

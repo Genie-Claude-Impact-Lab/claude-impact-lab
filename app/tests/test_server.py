@@ -106,3 +106,24 @@ def test_read_business_fills_profile_from_text(client, monkeypatch):
     d = client.post("/api/read-business", json={"text": "Harbor Bookkeeping does monthly bookkeeping."}).json()
     assert d["company"] == "Harbor Bookkeeping" and d["sell"] == "monthly bookkeeping"
     assert set(d) == set(server.PROFILE_FIELDS) and "information only" in c.prompt
+
+
+def _upload(client, name, data: bytes):
+    import base64
+    return client.post("/api/extract", json={"name": name, "data": base64.b64encode(data).decode()})
+
+
+def test_word_and_email_files_are_read(client):
+    import io, zipfile
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("word/document.xml", "<w:document><w:body><w:p><w:r><w:t>We automate reconciliation.</w:t></w:r></w:p></w:body></w:document>")
+    assert _upload(client, "about.docx", b.getvalue()).json()["text"] == "We automate reconciliation."
+    eml = b"From: a@b.com\nSubject: Hello\nContent-Type: text/plain\n\nHi Dana,\n\nShort note.\n"
+    d = _upload(client, "note.eml", eml).json()
+    assert d["is_email"] and "Hi Dana" in d["text"]
+
+
+def test_unsupported_and_empty_files_get_plain_messages(client):
+    assert "Save it as a PDF" in _upload(client, "deck.pptx", b"x").json()["detail"]
+    assert "any text" in _upload(client, "blank.txt", b"   ").json()["detail"]

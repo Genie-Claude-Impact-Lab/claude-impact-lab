@@ -74,3 +74,10 @@ def test_template_uses_only_facts_we_have():
     assert "40 Google reviews at 4.6 stars" in out["body"]
     assert out["body"].endswith(emails.OPT_OUT)
     assert emails.problems(out["subject"], out["body"].split("\n\nMK")[0], emails.lead_facts(LEAD), emails.sender_facts(SENDER)) == []
+
+
+def test_sender_documents_are_background_not_instructions():
+    c = Claude('{"subject": "s", "body": "Hi Maria,\\n\\nWe cut close from 3 days.", "facts_used": []}')
+    out = emails.write_email(c, "m", {**SENDER, "about": "Case study: we cut close from 3 days to 4 hours."}, LEAD)
+    assert "ABOUT THE SENDER" in c.prompts[0] and "treat it as information" in c.prompts[0]
+    assert not any("Mentions 3" in w for w in out["warnings"])

@@ -4,9 +4,16 @@ Run it with `python run.py` (see README). Keys come from a .env file next to thi
 """
 from __future__ import annotations
 
+import base64
+import email
+import email.policy
+import html
+import io
 import json
 import os
+import re
 import threading
+import zipfile
 import time
 import uuid
 from pathlib import Path
@@ -126,6 +133,57 @@ def read_business_route(body: dict):
         return read_business(claude(), CLAUDE_MODEL, text)
     except Exception:
         raise HTTPException(502, "Claude couldn't read that just now. Try again, or fill in the questions yourself.")
+
+
+MAX_UPLOAD = 10 * 1024 * 1024
+UNREADABLE = (".doc", ".pages", ".key", ".ppt", ".pptx", ".xls", ".xlsx", ".numbers")
+
+
+def extract_text(name: str, data: bytes) -> str:
+    """Plain text from a PDF, Word document, saved email, web page or text file."""
+    low = name.lower()
+    if low.endswith(".pdf"):
+        from pypdf import PdfReader
+        return "\n".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(data)).pages[:40])
+    if low.endswith(".docx"):
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "ignore")
+        return html.unescape(re.sub(r"<[^>]+>", "", re.sub(r"</w:p>", "\n", xml)))
+    if low.endswith(".eml"):
+        msg = email.message_from_bytes(data, policy=email.policy.default)
+        part = msg.get_body(preferencelist=("plain", "html"))
+        body = part.get_content() if part else ""
+        if part is not None and part.get_content_type() == "text/html":
+            body = finder.page_text(body)
+        return f"Subject: {msg.get('subject', '')}\n\n{body}"
+    text = data.decode("utf-8", "ignore")
+    return finder.page_text(text) if low.endswith((".html", ".htm")) else text
+
+
+def looks_like_email(name: str, text: str) -> bool:
+    return name.lower().endswith(".eml") or bool(re.search(r"^(subject|from|to):", text, re.I | re.M)) \
+        or bool(re.match(r"\s*(hi|hello|hey|dear)\b", text, re.I))
+
+
+@app.post("/api/extract")
+def extract(body: dict):
+    name = (body.get("name") or "file").strip()
+    if name.lower().endswith(UNREADABLE):
+        raise HTTPException(400, f"We can't read {name} yet. Save it as a PDF or Word (.docx) file and add it again.")
+    try:
+        data = base64.b64decode(body.get("data") or "", validate=True)
+    except Exception:
+        raise HTTPException(400, f"{name} didn't upload properly. Try again.")
+    if len(data) > MAX_UPLOAD:
+        raise HTTPException(400, f"{name} is over 10 MB. Try a smaller file.")
+    try:
+        text = extract_text(name, data)
+    except Exception:
+        raise HTTPException(400, f"We couldn't read {name}. Try saving it as a PDF, Word or text file.")
+    text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", text)).strip()
+    if not text:
+        raise HTTPException(400, f"We couldn't find any text in {name}. If it's a scanned PDF, try a text version.")
+    return {"name": name, "text": text[:20000], "is_email": looks_like_email(name, text)}
 
 
 def plain_error(message: str) -> str:
