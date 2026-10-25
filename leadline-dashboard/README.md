@@ -8,7 +8,9 @@ Built at the Claude Impact Lab Hackathon, Seattle, October 2026.
 
 ## Run it
 
-Open `index.html` in a browser. It works offline apart from the font and the CSV reader, which load from a CDN.
+**Open the app:** [Leadline](https://claude.ai/artifact/AbpaWMP8Yv75RG82roGgGh), where the Ask box and email rewrite use Claude.
+
+Or open `index.html` in a browser. It works offline apart from the font and the CSV reader, which load from a CDN.
 
 - Two demo businesses are built in (a coffee roaster and a SaaS company). Switch between them in the sidebar.
 - **Import leads** takes a CSV with at least `business_name` and `email` columns.
