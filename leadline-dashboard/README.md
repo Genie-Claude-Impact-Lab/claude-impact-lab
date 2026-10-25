@@ -18,3 +18,7 @@ Open `index.html` in a browser. It works offline apart from the font and the CSV
 When it's opened as a Claude artifact, the Ask box and the email rewrite button use Claude. Opened anywhere else, the Ask box only filters leads by keyword.
 
 All lead data in the demo is made up.
+
+## Imported data and Claude
+
+Everything in an imported CSV, including each lead's website text, goes to Claude as context when you use the Ask box or the rewrite button. A CSV built from scraped websites could include text written to steer Claude, for example to change drafts or move leads between stages. Leadline never sends email on its own, so read every draft before you send it, and only import CSVs you trust.

@@ -373,13 +373,13 @@ function setStage(id, stage){ stages[id] = {stage, at:Date.now()}; store.set(K("
 const L = t => t ? `\u27E6L${t}\u27E7` : "", Y = t => t ? `\u27E6Y${t}\u27E7` : "";
 const strip = s => s.replace(/\u27E6[LY]([\s\S]*?)\u27E7/g, "$1");
 const marked = s => esc(s).replace(/\u27E6L([\s\S]*?)\u27E7/g, '<mark class="ml">$1</mark>').replace(/\u27E6Y([\s\S]*?)\u27E7/g, '<mark class="my">$1</mark>');
-function hookOf(l){ return l.hook || (l.summary ? "you’re " + l.summary.charAt(0).toLowerCase() + l.summary.slice(1).replace(/\.$/,"") : "the work you do"); }
+function hookOf(l){ return l.hook || (l.summary ? `you describe yourselves as “${l.summary.trim().replace(/\.$/,"")}”` : "the work you do"); }
 function templates(l){
   const first = firstName(l.contact_name);
   const hi = first ? `Hi ${L(first)},` : "Hi there,";
   const sign = `\n\nBest,\n${profile.senderName}\n${profile.senderTitle ? profile.senderTitle + ", " : ""}${profile.company}`;
   const hook = hookOf(l), city = cityOf(l);
-  const rev = +l.review_count >= 100 ? ` ${L(`${l.review_count} Google reviews at ${l.google_rating} stars`)} says your customers notice quality, and that’s who we build for.` : "";
+  const rev = +l.review_count >= 100 ? ` ${L(`${l.review_count} Google reviews at ${l.google_rating} stars`)} say your customers notice quality, and that’s who we build for.` : "";
   return [
     {label:"Short and direct", subject:`Quick idea for ${l.business_name}`,
      body:`${hi}\n\nI came across ${l.business_name} and noticed ${L(hook)}.\n\nAt ${profile.company}, we ${Y(profile.pitch)}. ${Y(profile.proof)}\n\nWould you be up for ${Y(profile.cta)}?${sign}`},
@@ -550,10 +550,18 @@ function renderAgent(){
 }
 function basicSearch(q){
   const t = q.toLowerCase(); let r = LEADS;
+  // Without Claude, requests to write or explain can't be done; filtering on their words would mislead.
+  if (/\b(follow.?up|nudge)/.test(t)) {
+    r = LEADS.filter(l => stageOf(l.lead_id) === "emailed");
+    viewFilter = {ids:new Set(r.map(l => String(l.lead_id))), label:"Emailed, waiting on a reply", key:null}; renderAll();
+    return r.length ? `Showing ${r.length} emailed lead${r.length === 1 ? "" : "s"} you could follow up with. Claude isn’t connected on this page, so I can only filter right now.` : "No emailed leads to follow up with yet.";
+  }
+  if (/^(please\s+)?(draft|write|rewrite|send|email|why|how|explain|tell)\b/.test(t))
+    return "Claude isn’t connected on this page, so I can’t write or explain here. Open any lead to see its ready-made email, or search by business name, type or stage.";
   const v = views().find(x => t.includes(x.key.toLowerCase().slice(0,5)) || t.includes(x.label.toLowerCase().slice(0,5)));
   if (v) r = r.filter(l => l.category === v.key);
   if (/named|contact|person/.test(t)) r = r.filter(l => l.contact_name);
-  const st = STAGES.find(([k]) => t.includes(k)); if (st) r = r.filter(l => stageOf(l.lead_id) === st[0]);
+  const st = STAGES.find(([k]) => new RegExp(`\\b${k}\\b`).test(t)); if (st) r = r.filter(l => stageOf(l.lead_id) === st[0]);
   if (r === LEADS) r = LEADS.filter(l => [l.business_name, l.contact_name, l.summary, l.address].join(" ").toLowerCase().includes(t));
   viewFilter = {ids:new Set(r.map(l => String(l.lead_id))), label:q, key:null}; renderAll();
   return r.length ? `Showing ${r.length} matching lead${r.length === 1 ? "" : "s"}. Claude isn’t connected on this page, so I can only filter by keywords right now.` : "No leads matched those words. Claude isn’t connected on this page, so try a business name, type or stage.";
@@ -586,6 +594,12 @@ let lastFocus = null;
 function openDrawer(){ lastFocus = document.activeElement; $("scrim").classList.add("on"); $("drawer").classList.add("on"); $("drawer").setAttribute("aria-hidden","false"); document.body.style.overflow = "hidden"; setTimeout(() => $("dClose").focus(), 60); }
 function closeDrawer(){ aiCtl?.abort(); $("scrim").classList.remove("on"); $("drawer").classList.remove("on"); $("drawer").setAttribute("aria-hidden","true"); document.body.style.overflow = ""; openId = null; renderAll(); lastFocus?.focus?.(); }
 
+// Websites can come from an imported CSV, so only http(s) becomes a link; "www.x.com" gets https://.
+function webUrl(u){
+  u = String(u || "").trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(u) ? "https://" + u : null;
+}
 function openLead(id){
   const l = byId(id); if (!l) return;
   openId = l.lead_id; variant = 0; editing = false;
@@ -600,7 +614,7 @@ function openLead(id){
         ${bad.length ? `<h3 style="margin-top:16px">Watch out for</h3><ul class="why2 w">${bad.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}</section>
       <section class="panel"><h3>About ${esc(l.business_name)}</h3><p style="margin:0">${esc(l.website_text || l.summary || "No description yet.")}</p>
         <dl class="facts">${fact("Contact", l.contact_name ? esc(l.contact_name) + (l.contact_title ? ", " + esc(l.contact_title) : "") : "")}${fact("Phone", esc(l.phone))}${fact("Address", esc(l.address))}
-        ${fact("Website", l.website ? `<a href="${esc(l.website)}" target="_blank" rel="noopener">${esc(String(l.website).replace(/^https?:\/\//,""))}</a>` : "")}
+        ${fact("Website", l.website ? (webUrl(l.website) ? `<a href="${esc(webUrl(l.website))}" target="_blank" rel="noopener">${esc(String(l.website).trim().replace(/^https?:\/\//i,""))}</a>` : esc(l.website)) : "")}
         ${fact("Google reviews", l.review_count ? `${esc(l.google_rating)}★ from ${esc(l.review_count)}` : "")}${fact("Lead score", score(l))}</dl></section>
     </div>`;
   renderMail();
