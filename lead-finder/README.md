@@ -10,9 +10,13 @@ Built at the Claude Impact Lab Hackathon, Seattle, October 2026.
 
 **Open the app:** [Lead Finder](PASTE_STREAMLIT_LINK_HERE)
 
-1. **Tell us about your customers.** What you sell, what kinds of businesses buy from you (tap to pick), which city, how far, and who you usually talk to.
-2. **Press Find leads.** It takes about a minute for 40 businesses.
-3. **Work through your list.** Leads are grouped into **Contact now**, **Worth a try**, **Need an email**, **Later**, and **Skipped**. Each one shows the next step and why. Press **Write my first email**, copy it, fill in the parts in [brackets], and send it from your own email. Press **Download as a spreadsheet** to keep the list.
+1. **Say who you sell to, in one sentence.** For example: “I sell invoice review software to small accounting firms in Seattle.” Claude fills in the details: business types, city, distance, and who you usually talk to. Check them and change anything.
+2. **Press Find leads.** Watch each step as it happens: businesses found, chains set aside, websites visited, emails found, websites read by Claude. It takes 30 to 60 seconds.
+3. **Work through your leads.**
+   - **Best leads:** each card shows the owner’s name, what the business does, **why they might need you** (written by Claude from their own website), the email, and a **Write my first email** button.
+   - **Map:** see where every lead is.
+   - **Need an email:** real businesses with no email on their website. Call them, paste the email you get, and the lead moves up.
+   - **All in a table:** sort, scan, and download as a spreadsheet.
 
 ## What makes a good lead
 
@@ -20,17 +24,19 @@ Built at the Claude Impact Lab Hackathon, Seattle, October 2026.
 |---|---|
 | It’s a real, open business | Found on Google Maps, and Google doesn’t list it as closed |
 | It’s active | Its newest Google review is recent |
-| There’s a valid email | Found on the business’s own website, and the email’s domain can receive mail |
+| There’s a valid email | Found on the business’s own website, then verified: correct format, not a throwaway address, the domain receives mail, and (where the mail server allows) the mailbox exists. Addresses that fail are left out |
 | You know who to ask for | The owner’s name, read from their About page |
 | It’s your kind of customer | The type and area you picked; chains and your do-not-contact list are skipped |
+| They’re likely to need you | Claude reads their website and rates the fit from 0 to 100, with a one-line reason |
 
-Points out of 100: personal company email 30 (shared inbox 15, free account 10), owner’s name 20 (any name 10), Google review in the last 3 months 20 (last year 10), website 10, phone 5, a sign they need you 15. **Contact now** is 70 or more, **Worth a try** is 50–69.
+Points out of 100: personal company email 30 (shared inbox 15, free account 10), confirmed mailbox 5, owner’s name 20 (any name 10), Google review in the last 3 months 20 (last year 10), website 10, phone 5, a strong fit or a sign they need you 15. **Contact now** is 70 or more, **Worth a try** is 50–69.
+Businesses Claude rates as a weak fit (under 40) go to **Later**, however good their contact details.
 
 ## Built to avoid the problems of big lead tools
 
 | Common complaint about Apollo and similar tools | What Lead Finder does |
 |---|---|
-| Contact data is out of date or wrong | Emails come straight from each business’s own website today, and we check the domain can receive mail |
+| Contact data is out of date or wrong | Emails come straight from each business’s own website today, and every one is verified before you see it, with a clear label: Mailbox confirmed, Domain accepts mail, or Can’t confirm mailbox |
 | AI makes things up | Claude may only use a name that is written on the business’s website. Anything else is thrown out, and you’re told |
 | Weak on local small businesses | Built on Google Maps, where local businesses actually are |
 | Hard to set up, too many features | Six questions and one button |
@@ -86,7 +92,7 @@ and repeating the same search within an hour is instant. Add a Google key when y
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                      # 31 tests, all offline, using fake Google results, fake websites and a fake Claude
+pytest                      # 42 tests, all offline, using fake Google results, fake websites and a fake Claude
 streamlit run app.py        # set GOOGLE_MAPS_API_KEY and ANTHROPIC_API_KEY first
 ```
 
@@ -99,3 +105,7 @@ Lead Finder only reads public pages: Google Maps listings and each business’s 
 ## License
 
 MIT
+
+### About email verification
+
+Lead Finder checks every email in layers and never sends anything. The last layer asks the business’s mail server whether the mailbox exists. Some hosting services, possibly including Streamlit Cloud, block the connection this needs. When that happens the app says so and labels emails **Domain accepts mail** instead of **Mailbox confirmed**. For full mailbox checks at scale, a paid verification service (such as ZeroBounce or NeverBounce) can be added later.

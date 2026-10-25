@@ -3,7 +3,7 @@ import finder
 from fakes import fake_get, fake_post_factory, FakeClaude, PLACES, place
 
 PROFILE = {"sell": "invoice review software", "types": ["Accounting and bookkeeping firms"], "types_other": "",
-           "city": "Seattle, WA", "radius": "Within 10 miles", "deciders": ["The owner"], "signals": ["Few reviews"],
+           "city": "Seattle, WA", "radius": "10 miles", "deciders": ["The owner"], "signals": ["Few reviews"],
            "avoid": ["Chains and franchises"], "do_not_contact": []}
 
 @pytest.fixture
@@ -99,7 +99,7 @@ def test_email_whose_domain_cannot_receive_mail_is_dropped(offline):
     res = finder.find_leads(PROFILE, limit=40, google_key="k", mx=lambda d: d != "harborbooks.com")
     l = lead(res, "Harbor Bookkeeping")
     assert l["email"] == ""
-    assert any("can’t receive email" in c for c in l["check"])
+    assert any("isn’t set up to receive email" in c for c in l["check"])
 
 def test_do_not_contact_list_is_respected(offline):
     p = {**PROFILE, "do_not_contact": ["harbor bookkeeping"]}
@@ -153,7 +153,7 @@ def test_csv_rows_have_plain_priority_labels(offline):
     assert set(rows[0]) == set(finder.CSV_COLUMNS)
 
 # ---------- free mode (no Google key)
-def test_free_map_tries_the_next_server_when_one_is_busy():
+def test_free_map_asks_all_servers_at_once_and_uses_a_good_answer():
     from fakes import Resp
     tried = []
     def post(url, **kw):
@@ -162,7 +162,8 @@ def test_free_map_tries_the_next_server_when_one_is_busy():
             return Resp(502, "busy")
         return Resp(200, data={"elements": [{"type": "node", "id": 5, "lat": 47.6, "lon": -122.3, "tags": {"name": "A"}}]})
     out = finder.osm_search(['office~"^(accountant)$"'], (47.6, -122.3), 10, 20, post=post, pause=lambda s: None)
-    assert [l["business_name"] for l in out] == ["A"] and len(tried) == 3
+    assert [l["business_name"] for l in out] == ["A"]
+    assert len(set(tried)) == len(tried) <= len(finder.OVERPASS)   # all asked at once, each only once
 
 def test_free_map_gives_plain_message_when_all_servers_are_busy():
     from fakes import Resp
@@ -185,3 +186,82 @@ def test_business_whose_website_is_for_sale_is_skipped(offline):
 
 def test_domain_sale_emails_are_never_used():
     assert finder.emails_in_html("service@afternic.com partnerseller@afternic.com") == []
+
+def test_slow_websites_do_not_hold_up_the_results(offline):
+    import time as _t
+    def visit(url):
+        if "elliott" in url:
+            import threading
+            threading.Event().wait(3)   # time.sleep is switched off by the offline fixture
+        return finder.visit_website(url)
+    import finder as f
+    start = _t.time()
+    items = list(f._parallel(visit, ["https://harborbooks.com", "https://elliottcpa.com"], 4, deadline=1))
+    assert _t.time() - start < 2.5
+    assert any(isinstance(r, TimeoutError) for _, r in items)
+
+
+# ---------- smarter features
+def test_claude_turns_a_sentence_into_search_answers():
+    d = finder.claude_understand(FakeClaude(), "m", "I sell invoice review software to accountants in Seattle")
+    assert d["types"] == ["Accounting and bookkeeping firms"]          # made-up choices are dropped
+    assert d["city"] == "Seattle, WA" and d["radius"] == "25 miles"
+
+def test_claude_fit_and_hook_shape_the_ranking(offline):
+    res = run(FakeClaude())
+    harbor = lead(res, "Harbor Bookkeeping")
+    assert harbor["fit"] == 88 and "invoices" in harbor["hook"]
+    assert any("strong fit" in w for w in harbor["why"])
+    elliott = lead(res, "Elliott CPA Group")            # Claude says fit 20
+    assert elliott["tier"] == "later" and "Probably not your customer" in elliott["next"]
+
+def test_progress_log_tells_the_story(offline):
+    lines = []
+    run(FakeClaude(), log=lines.append)
+    text = " ".join(lines)
+    assert "Found 9 businesses on Google Maps" in text
+    assert "Visiting" in text and "Claude is reading" in text
+
+def test_owner_can_add_an_email_found_by_phone(offline):
+    res = run()
+    phone_only = lead(res, "Phone Only Tax")
+    assert phone_only["tier"] == "need_email"
+    updated = finder.with_manual_email(phone_only, "dana@phoneonlytax.com", PROFILE)
+    assert updated["email"] == "dana@phoneonlytax.com" and updated["tier"] in ("now", "try", "later")
+    assert updated["why"][0] == "You added this email yourself."
+    assert finder.with_manual_email(phone_only, "not an email", PROFILE)["tier"] == "need_email"
+
+
+# ---------- email verification
+def test_verify_rejects_bad_format_and_throwaway_domains():
+    assert finder.verify_email("not-an-email")["status"] == "invalid"
+    assert finder.verify_email("a@mailinator.com", has_mx_fn=lambda d: True)["status"] == "invalid"
+
+def test_verify_domain_without_mail_servers_is_invalid():
+    assert finder.verify_email("a@nomail.com", hosts_fn=lambda d: [])["status"] == "invalid"
+
+def test_verify_uses_mail_server_answer(monkeypatch):
+    monkeypatch.setattr(finder, "SMTP_CHECK", True)
+    hosts = lambda d: ["mx.example.net"]
+    assert finder.verify_email("maria@shop.com", hosts_fn=hosts, probe=lambda e, h: (True, False))["status"] == "valid"
+    assert finder.verify_email("nobody@shop.com", hosts_fn=hosts, probe=lambda e, h: (False, False))["status"] == "invalid"
+    assert finder.verify_email("maria@shop.com", hosts_fn=hosts, probe=lambda e, h: (True, True))["status"] == "accepts_all"
+    assert finder.verify_email("maria@shop.com", hosts_fn=hosts, probe=lambda e, h: (None, None))["status"] == "domain_ok"
+    assert finder.verify_email("maria@shop.com", hosts_fn=lambda d: None)["status"] == "unknown"
+
+def test_pipeline_drops_mailboxes_that_do_not_exist_and_uses_the_next(offline):
+    def verify(e):
+        return {"status": "invalid", "detail": "Their mail server says this mailbox doesn’t exist."} if e.startswith("maria@") \
+            else {"status": "valid", "detail": "ok"}
+    res = finder.find_leads(PROFILE, limit=40, google_key="k", verify=verify)
+    l = lead(res, "Harbor Bookkeeping")
+    assert l["email"] == "info@harborbooks.com" and l["email_status"] == "valid"
+    assert any("Left out maria@harborbooks.com" in c for c in l["check"])
+    assert any("Mailbox confirmed" in w for w in l["why"])
+
+def test_added_email_is_verified(offline):
+    phone_only = lead(run(), "Phone Only Tax")
+    bad = finder.with_manual_email(phone_only, "x@nowhere.com", PROFILE, verify=lambda e: {"status": "invalid", "detail": "no"})
+    assert bad["email"] == "" and bad["tier"] == "need_email"
+    good = finder.with_manual_email(phone_only, "dana@phoneonlytax.com", PROFILE, verify=lambda e: {"status": "valid", "detail": "ok"})
+    assert good["email_status"] == "valid"

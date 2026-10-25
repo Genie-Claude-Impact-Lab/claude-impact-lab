@@ -65,21 +65,24 @@ def fake_post_factory(places=PLACES, status=200):
     return fake_post
 
 class FakeClaude:
-    """Reads the prompt and answers like Claude would, including one made-up name."""
+    """Answers like Claude would, including one made-up name and one poor fit."""
     def __init__(self):
         self.prompts = []
         self.messages = self
+
     def create(self, model, max_tokens, messages):
         p = messages[0]["content"]
         self.prompts.append(p)
         if "Write a short first sales email" in p:
-            out = '{"subject": "Faster invoice reviews", "body": "Hi Maria,\\n\\n...\\n\\nIf you’d rather not hear from me, just reply “no thanks” and I won’t email again."}'
+            out = '{"subject": "Faster invoice reviews", "body": "Hi Maria,\\n\\nSaw you handle month-end close for small businesses...\\n\\nIf you’d rather not hear from me, just reply “no thanks” and I won’t email again."}'
+        elif "described what they sell" in p:
+            out = '{"sell": "invoice review software", "types": ["Accounting and bookkeeping firms", "Made Up Type"], "types_other": "", "city": "Seattle, WA", "radius": "25 miles", "deciders": ["The owner"], "signals": []}'
         elif "Fake Name Books" in p:
-            out = '{"owner_name": "Jordan Smith", "owner_title": "Owner"}'   # not on the page
+            out = '{"owner_name": "Jordan Smith", "owner_title": "Owner", "what_they_do": "Bookkeeping", "fit": 75, "hook": ""}'
         elif "Maria Lopez" in p:
-            out = '{"owner_name": "Maria Lopez", "owner_title": "Owner"}'
-        elif "Write a short first sales email" in p:
-            out = '{"subject": "Faster invoice reviews", "body": "Hi Maria,\\n\\n...\\n\\nIf you’d rather not hear from me, just reply “no thanks” and I won’t email again."}'
+            out = '{"owner_name": "Maria Lopez", "owner_title": "Owner", "what_they_do": "Bookkeeping for small businesses", "fit": 88, "hook": "They do monthly bookkeeping for small businesses, so they review lots of invoices."}'
+        elif "Tacoma Ledger" in p or "tacomaledger" in p:
+            out = '{"owner_name": "", "owner_title": "", "what_they_do": "Payroll", "fit": 60, "hook": ""}'
         else:
-            out = '{"owner_name": "", "owner_title": ""}'
+            out = '{"owner_name": "", "owner_title": "", "what_they_do": "Sells office furniture", "fit": 20, "hook": ""}'
         return type("M", (), {"content": [type("B", (), {"type": "text", "text": out})()]})()

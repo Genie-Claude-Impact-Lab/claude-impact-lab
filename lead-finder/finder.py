@@ -33,7 +33,7 @@ TYPES = {
     "Restaurants and cafes": {"google": ["restaurant", "cafe"], "osm": ['amenity~"^(restaurant|cafe)$"']},
     "Salons and spas": {"google": ["hair salon", "day spa"], "osm": ['shop~"^(hairdresser|beauty|massage)$"']},
 }
-RADIUS_MILES = {"Within 5 miles": 5, "Within 10 miles": 10, "Within 25 miles": 25}
+RADIUS_MILES = {"5 miles": 5, "10 miles": 10, "25 miles": 25}
 DECIDER_WORDS = {
     "The owner": ["owner", "founder", "co-founder", "president", "ceo", "principal", "proprietor", "partner", "managing member"],
     "A manager": ["manager", "director", "gm"],
@@ -313,14 +313,14 @@ def email_kind(email: str) -> str:
     return "shared" if local in ROLE or local.split(".")[0] in ROLE else "personal"
 
 
-def best_email(emails: list[str], website: str) -> str:
-    site = domain_of(website)
+def _email_rank(e: str, website: str):
+    site, dom = domain_of(website), e.split("@")[1]
+    on_site = 0 if site and (dom == site or dom.endswith("." + site)) else 1
+    return (on_site, {"personal": 0, "shared": 1, "free": 2}[email_kind(e)], e)
 
-    def rank(e):
-        dom = e.split("@")[1]
-        on_site = 0 if site and (dom == site or dom.endswith("." + site)) else 1
-        return (on_site, {"personal": 0, "shared": 1, "free": 2}[email_kind(e)], e)
-    return sorted(emails, key=rank)[0] if emails else ""
+
+def best_email(emails: list[str], website: str) -> str:
+    return sorted(emails, key=lambda e: _email_rank(e, website))[0] if emails else ""
 
 
 _mx_cache: dict = {}
@@ -339,6 +339,93 @@ def has_mx(domain: str):
         ok = False if type(e).__name__ in ("NXDOMAIN", "NoAnswer") else None
     _mx_cache[domain] = ok
     return ok
+
+
+# ---------------------------------------------------------------- email verification
+SMTP_CHECK = True          # tests switch this off
+_smtp_blocked = {"value": None}
+DISPOSABLE = {"mailinator.com", "10minutemail.com", "guerrillamail.com", "tempmail.com", "yopmail.com", "trashmail.com"}
+EMAIL_STATUS = {
+    "valid": ("Mailbox confirmed", "Their mail server says this address exists."),
+    "accepts_all": ("Can’t confirm mailbox", "Their mail server accepts any address, so this exact mailbox can’t be confirmed."),
+    "domain_ok": ("Domain accepts mail", "Their domain is set up to receive email. The mailbox itself wasn’t checked."),
+    "unknown": ("Not checked", "We couldn’t check this email right now."),
+    "invalid": ("Doesn’t exist", "This address can’t receive email."),
+}
+
+
+def mx_hosts(domain: str):
+    """Mail servers for a domain, best first. [] if none, None if DNS can't be reached."""
+    try:
+        import dns.resolver
+        ans = dns.resolver.resolve(domain, "MX", lifetime=5)
+        return [str(r.exchange).rstrip(".") for r in sorted(ans, key=lambda r: r.preference)]
+    except ImportError:
+        return None
+    except Exception as e:
+        return [] if type(e).__name__ in ("NXDOMAIN", "NoAnswer") else None
+
+
+def smtp_probe(email: str, host: str, timeout: float = 6):
+    """Ask the mail server whether the mailbox exists, without sending anything.
+    Returns (exists: True/False/None, catch_all: True/False/None). None means we couldn't tell."""
+    import random
+    import smtplib
+    import string
+    if _smtp_blocked["value"]:
+        return None, None
+    try:
+        with smtplib.SMTP(timeout=timeout) as s:
+            s.connect(host, 25)
+            _smtp_blocked["value"] = False
+            s.ehlo_or_helo_if_needed()
+            s.mail("")
+            code, _ = s.rcpt(email)
+            fake = "zz" + "".join(random.choices(string.ascii_lowercase + string.digits, k=12)) + "@" + email.split("@")[1]
+            code2, _ = s.rcpt(fake)
+            s.rset()
+    except (OSError, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError) as e:
+        if _smtp_blocked["value"] is None and isinstance(e, (TimeoutError, ConnectionRefusedError, OSError)):
+            _smtp_blocked["value"] = True     # this server can't reach port 25: stop trying
+        return None, None
+    except smtplib.SMTPException:
+        return None, None
+    exists = True if code in (250, 251) else False if code in (550, 551, 553) else None
+    catch_all = code2 in (250, 251)
+    return exists, catch_all
+
+
+def verify_email(email: str, has_mx_fn=None, hosts_fn=mx_hosts, probe=smtp_probe) -> dict:
+    """Layered check: format -> throwaway domain -> domain receives mail -> mailbox exists."""
+    email = (email or "").strip().lower()
+    if not EMAIL_RE.fullmatch(email):
+        return {"status": "invalid", "detail": "That isn’t a valid email address."}
+    dom = email.split("@")[1]
+    if dom in DISPOSABLE:
+        return {"status": "invalid", "detail": "That’s a throwaway email address."}
+    if has_mx_fn is not None:
+        ok = has_mx_fn(dom)
+        hosts = None
+    else:
+        hosts = hosts_fn(dom)
+        ok = None if hosts is None else bool(hosts)
+    if ok is False:
+        return {"status": "invalid", "detail": f"{dom} isn’t set up to receive email."}
+    if ok is None:
+        return {"status": "unknown", "detail": EMAIL_STATUS["unknown"][1]}
+    if SMTP_CHECK and hosts:
+        exists, catch_all = probe(email, hosts[0])
+        if exists is False:
+            return {"status": "invalid", "detail": "Their mail server says this mailbox doesn’t exist."}
+        if exists and catch_all:
+            return {"status": "accepts_all", "detail": EMAIL_STATUS["accepts_all"][1]}
+        if exists:
+            return {"status": "valid", "detail": EMAIL_STATUS["valid"][1]}
+    return {"status": "domain_ok", "detail": EMAIL_STATUS["domain_ok"][1]}
+
+
+def smtp_was_blocked() -> bool:
+    return bool(_smtp_blocked["value"])
 
 
 # ---------------------------------------------------------------- Claude: owner's name from the About page
@@ -364,6 +451,56 @@ Website text:
     return {"owner_name": name, "owner_title": (data.get("owner_title") or "").strip()}
 
 
+def claude_understand(client, model: str, description: str) -> dict:
+    """Turn 'I sell X to Y in Z' into answers for the guided questions. Only allowed choices are kept."""
+    msg = client.messages.create(model=model, max_tokens=500, messages=[{"role": "user", "content": f"""A small business owner described what they sell and who they sell to:
+\"\"\"{description}\"\"\"
+
+Fill in their search. Use ONLY these exact choices where a list is given.
+types (pick 1-3): {json.dumps(list(TYPES))}
+radius (pick 1): {json.dumps(list(RADIUS_MILES))}
+deciders (pick 1-2): {json.dumps(list(DECIDER_WORDS))}
+signals (pick 0-2): {json.dumps(SIGNALS)}
+If their customers don't fit any type, leave types empty and put a short search phrase (like "dog groomer") in types_other.
+city: the city and state they mentioned, like "Seattle, WA" ("" if none).
+sell: what they sell, as a short phrase that completes "I help businesses like yours with ...".
+
+Return ONLY JSON: {{"sell": "", "types": [], "types_other": "", "city": "", "radius": "", "deciders": [], "signals": []}}"""}])
+    d = _json_from("".join(b.text for b in msg.content if b.type == "text"))
+    pick = lambda xs, allowed: [x for x in (xs or []) if x in allowed]
+    return {"sell": (d.get("sell") or "").strip(), "types": pick(d.get("types"), TYPES)[:3],
+            "types_other": (d.get("types_other") or "").strip(), "city": (d.get("city") or "").strip(),
+            "radius": d.get("radius") if d.get("radius") in RADIUS_MILES else "10 miles",
+            "deciders": pick(d.get("deciders"), DECIDER_WORDS) or ["The owner"], "signals": pick(d.get("signals"), SIGNALS)}
+
+
+def claude_read_site(client, model: str, profile: dict, business: str, about_text: str) -> dict:
+    """Read a business's website: who runs it, what they do, and how much they might need what the owner sells."""
+    msg = client.messages.create(model=model, max_tokens=400, messages=[{"role": "user", "content": f"""You help a small business owner who sells: {profile.get('sell') or 'their services'}.
+Here is text from the website of “{business}”, a possible customer:
+\"\"\"{about_text[:5000]}\"\"\"
+
+Answer using ONLY facts written in that text.
+- owner_name, owner_title: the owner or most senior person named (empty if nobody is clearly named).
+- what_they_do: what this business does, in under 12 words.
+- fit: 0 to 100, how likely they are to need what the owner sells.
+- hook: one plain sentence (under 25 words) saying why they might need it, pointing to something specific on their website. Empty if there's no real reason.
+
+Return ONLY JSON: {{"owner_name": "", "owner_title": "", "what_they_do": "", "fit": 0, "hook": ""}}"""}])
+    d = _json_from("".join(b.text for b in msg.content if b.type == "text"))
+    out = {"what_they_do": (d.get("what_they_do") or "").strip(), "hook": (d.get("hook") or "").strip()}
+    try:
+        out["fit"] = max(0, min(100, int(d.get("fit"))))
+    except (TypeError, ValueError):
+        out["fit"] = None
+    name = (d.get("owner_name") or "").strip()
+    if name and name.lower() not in about_text.lower():  # never accept a name that isn't on the page
+        out["rejected_name"] = name
+    elif name:
+        out["owner_name"], out["owner_title"] = name, (d.get("owner_title") or "").strip()
+    return out
+
+
 OWNER_TITLES = r"((?i:co-owner|owner|co-founder|founder|president|ceo|principal|managing partner|managing member|managing director|proprietor|partner))"
 _CREDS = r"(?:,? (?:CPA|EA|MBA|JD|DDS|DMD|MD|Esq\.?|PE|CFP|PhD|LCSW|DC|DPT))*"
 _NAME = r"([A-Z][a-z]+(?: [A-Z]\.)? [A-Z][a-z]+(?:-[A-Z][a-z]+)?)"
@@ -387,11 +524,11 @@ def claude_email(client, model: str, profile: dict, lead: dict) -> dict | None:
     if not client:
         return None
     facts = {k: lead.get(k) for k in ("business_name", "contact_name", "contact_title", "address", "industry",
-                                      "rating", "review_count", "last_review_date", "website")}
+                                      "rating", "review_count", "last_review_date", "website", "what_they_do", "hook")}
     msg = client.messages.create(model=model, max_tokens=600, messages=[{"role": "user", "content": f"""Write a short first sales email from a small business owner to a potential customer.
 About the sender: they sell {profile.get('sell','')}.
 The business they're writing to: {json.dumps(facts)}
-Rules: under 120 words; warm, plain, specific to this business; mention one real detail from the data (never invent facts, never claim to have visited or used the business); one clear ask (a short call or reply); greet by first name if known.
+Rules: under 120 words; warm, plain, specific to this business; build on the "hook" if there is one; mention one real detail from the data (never invent facts, never claim to have visited or used the business); one clear ask (a short call or reply); greet by first name if known.
 End with exactly:
 [Your name]
 [Your business]
@@ -452,6 +589,16 @@ def score(lead: dict, profile: dict) -> dict:
                     "free": "Uses a free email account (like Gmail)."}[kind])
         if kind == "free":
             check.append("Free email account: make sure it belongs to this business.")
+        st_ = lead.get("email_status")
+        if st_ == "valid":
+            pts += 5
+            why.append("Mailbox confirmed: their mail server says this address exists.")
+        elif st_ == "domain_ok":
+            why.append("Their domain accepts email. The mailbox itself wasn’t checked.")
+        elif st_ == "accepts_all":
+            check.append("Their mail server accepts any address, so we can’t confirm this exact mailbox.")
+        elif st_ == "unknown":
+            check.append("We couldn’t verify this email. Double-check it before sending.")
         site = domain_of(lead.get("website", ""))
         dom = email.split("@")[1]
         if site and dom not in FREE and dom != site and not dom.endswith("." + site):
@@ -506,20 +653,48 @@ def score(lead: dict, profile: dict) -> dict:
 
     if lead.get("found_on") != "Google Maps":   # free map: no review data, so 20 points can't be earned
         pts = round(pts * 100 / 80)
+    fit = lead.get("fit")
+    if fit is not None and fit >= 70:
+        pts += 15
+        why.append(f"Claude thinks they’re a strong fit ({fit} of 100).")
+    elif fit is not None and fit < 40:
+        why.append(f"Claude thinks they’re a weak fit ({fit} of 100).")
     pts = min(pts, 100)
     first = name.split(" ")[0] if name else "them"
     if skip:
         tier, nxt = "skip", "Skip. " + skip
+    elif fit is not None and fit < 40:
+        tier, nxt = "later", "Probably not your customer" + (f": they {lead['what_they_do'][0].lower() + lead['what_they_do'][1:]}"
+                                                               if lead.get("what_they_do") else ".")
+        nxt = nxt if nxt.endswith(".") else nxt + "."
     elif not email:
         tier, nxt = "need_email", ("Call " + lead["phone"] + " and ask for the best email." if lead.get("phone")
                                    else "We couldn’t find an email or phone yet.")
     elif pts >= 70:
-        tier, nxt = "now", f"Email {first} first at {email}."
+        tier, nxt = "now", f"Email {first} first."
     elif pts >= 50:
         tier, nxt = "try", f"Worth a short email to {first} this week."
     else:
         tier, nxt = "later", "Save for later. Start with your Contact now list."
     return {**lead, "score": 0 if skip else pts, "tier": tier, "next": nxt, "why": why, "check": check, "improve": improve}
+
+
+def with_manual_email(lead: dict, email: str, profile: dict, verify=None) -> dict:
+    """The owner found an email themselves (for example by calling). Re-score with it."""
+    email = email.strip().lower()
+    if not EMAIL_RE.fullmatch(email):
+        return lead
+    base = {k: v for k, v in lead.items() if k not in ("score", "tier", "next", "why", "check", "improve")}
+    base["email"], base["flags"] = email, [f for f in base.get("flags", []) if "email" not in f.lower()]
+    v = verify(email) if verify else {"status": "unknown", "detail": ""}
+    base["email_status"], base["email_detail"] = v["status"], v["detail"]
+    if v["status"] == "invalid":
+        base["email"] = ""
+        base["flags"].append(f"The email you added didn’t check out: {v['detail']}")
+    out = score(base, profile)
+    if base["email"]:
+        out["why"] = ["You added this email yourself."] + out["why"]
+    return out
 
 
 TIER_ORDER = {"now": 0, "try": 1, "need_email": 2, "later": 3, "skip": 4}
@@ -533,7 +708,7 @@ def norm(s):
 
 def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_client=None,
                claude_model: str = "claude-sonnet-5-5", progress=lambda msg, frac: None,
-               visit=visit_website, mx=has_mx) -> dict:
+               visit=visit_website, mx=has_mx, log=lambda text: None, verify=None) -> dict:
     types = list(profile.get("types", []))
     queries = [q for t in types for q in TYPES.get(t, {}).get("google", [])]
     if profile.get("types_other"):
@@ -574,6 +749,7 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
             continue
         seen[k] = l
         leads.append(l)
+    log(f"Found {len(leads)} businesses on {source}.")
     names = [norm(l["business_name"]) for l in leads]
     dnc = {x.strip().lower() for x in profile.get("do_not_contact", []) if x.strip()}
     for l in leads:
@@ -587,39 +763,61 @@ def find_leads(profile: dict, limit: int = 40, google_key: str = "", claude_clie
     leads.sort(key=lambda l: (l["outside_area"], not (l.get("website") or l.get("listed_email")), l.get("distance_mi") or 0))
     leads = leads[: limit]
 
+    gone = sum(1 for l in leads if l["is_chain"] or l["outside_area"] or l.get("status") != "open")
+    if gone:
+        log(f"Set aside {gone} chains, closed or far-away places.")
+
     # visit websites in parallel
     todo = [l for l in leads if l.get("website") and not l["do_not_contact"]]
+    log(f"Visiting {len(todo)} websites to look for emails…")
     for i, (l, res) in enumerate(_parallel(lambda l: visit(l["website"]), todo, 16, deadline=45)):
         progress(f"Checking websites for emails ({i + 1} of {len(todo)})…", 0.15 + 0.5 * (i + 1) / max(1, len(todo)))
         l["site"] = res if isinstance(res, dict) else {"emails": [], "about_text": "", "pages": [],
                                                        "error": str(res) if isinstance(res, TimeoutError) else "We couldn’t open their website."}
 
-    # pick an email, check it can receive mail
+    # pick an email and verify it: format, domain, mailbox. Invalid ones are dropped.
+    if verify is None:
+        verify = lambda e: verify_email(e, has_mx_fn=None if mx is has_mx else mx)
     for l in leads:
         emails = list((l.get("site") or {}).get("emails", []))
         if l.get("listed_email"):
             emails.append(l["listed_email"].lower())
         l["all_emails"] = sorted(set(emails))
-        pick = best_email(l["all_emails"], l.get("website", ""))
-        if pick:
-            ok = mx(pick.split("@")[1])
-            if ok is False:
-                l["flags"].append(f"Found {pick}, but that domain can’t receive email, so we left it out.")
-                rest = [e for e in l["all_emails"] if e.split("@")[1] != pick.split("@")[1]]
-                pick = best_email(rest, l.get("website", ""))
-            l["email_checked"] = ok is True
-        l["email"] = pick
+        l["candidates"] = sorted(l["all_emails"], key=lambda e: _email_rank(e, l.get("website", "")))[:3]
         if (l.get("site") or {}).get("error") and not l["site"].get("parked"):
             l["flags"].append(l["site"]["error"])
+    checks = [(l, e) for l in leads for e in l["candidates"]]
+    if checks:
+        log(f"Checking {len(checks)} email addresses are real…")
+    results = {}
+    for (l, e), res in _parallel(lambda le: verify(le[1]), checks, 12, deadline=40):
+        results[(l["id"], e)] = res if isinstance(res, dict) else {"status": "unknown", "detail": EMAIL_STATUS["unknown"][1]}
+    for l in leads:
+        l["email"], l["email_status"], l["email_detail"] = "", "", ""
+        for e in l["candidates"]:
+            r = results.get((l["id"], e), {"status": "unknown", "detail": EMAIL_STATUS["unknown"][1]})
+            if r["status"] == "invalid":
+                l["flags"].append(f"Left out {e}: {r['detail']}")
+                continue
+            l["email"], l["email_status"], l["email_detail"] = e, r["status"], r["detail"]
+            break
+        l["email_checked"] = l["email_status"] in ("valid", "domain_ok", "accepts_all")
+    if smtp_was_blocked():
+        log("Mailbox checks aren’t possible from this server, so we confirmed each email’s domain instead.")
 
-    # ask Claude for the owner's name, only where we have an email and About text
+    log(f"Found an email for {sum(1 for l in leads if l['email'])} of them.")
+
+    # Claude reads each website: owner's name, what they do, how much they need what the owner sells
     if claude_client:
-        ask = [l for l in leads if l["email"] and (l.get("site") or {}).get("about_text")]
-        for i, (l, res) in enumerate(_parallel(lambda l: claude_owner(claude_client, claude_model, l["business_name"],
-                                                                       l["site"]["about_text"]), ask, 4)):
-            progress(f"Reading About pages for owners’ names ({i + 1} of {len(ask)})…", 0.7 + 0.25 * (i + 1) / max(1, len(ask)))
+        ask = [l for l in leads if (l.get("site") or {}).get("about_text") and not l["do_not_contact"]]
+        log(f"Claude is reading {len(ask)} websites to judge fit and find owners’ names…")
+        for i, (l, res) in enumerate(_parallel(lambda l: claude_read_site(claude_client, claude_model, profile,
+                                                                           l["business_name"], l["site"]["about_text"]),
+                                               ask, 6, deadline=60)):
+            progress(f"Claude is reading websites ({i + 1} of {len(ask)})…", 0.7 + 0.25 * (i + 1) / max(1, len(ask)))
             if isinstance(res, dict):
                 l["contact_name"], l["contact_title"] = res.get("owner_name", ""), res.get("owner_title", "")
+                l["fit"], l["hook"], l["what_they_do"] = res.get("fit"), res.get("hook", ""), res.get("what_they_do", "")
                 if res.get("rejected_name"):
                     l["flags"].append(f"Ignored the name “{res['rejected_name']}” because it isn’t on their website.")
 
@@ -655,8 +853,10 @@ def _parallel(fn, items, workers, deadline=None):
         ex.shutdown(wait=False, cancel_futures=True)
 
 
-CSV_COLUMNS = ["priority", "business_name", "next", "contact_name", "contact_title", "email", "phone", "website",
-               "address", "rating", "review_count", "last_review_date", "score", "found_on", "maps_url", "why", "check"]
+CSV_COLUMNS = ["priority", "business_name", "next", "hook", "what_they_do", "contact_name", "contact_title", "email",
+               "email_status",
+               "phone", "website", "address", "rating", "review_count", "last_review_date", "fit", "score", "found_on",
+               "maps_url", "why", "check"]
 
 
 def to_rows(leads: list[dict]) -> list[dict]:
